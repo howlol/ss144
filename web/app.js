@@ -448,6 +448,25 @@ async function initApp() {
   connectWebSocket();
   startBrowserDirectLlmLoop();
   requestAnimationFrame(renderLoop);
+  checkNativeClientStatus(true);
+}
+
+async function checkNativeClientStatus(autoOpen = false) {
+  try {
+    const res = await fetch("/api/native_status");
+    const ns = await res.json();
+    const btn = document.getElementById("modeNativeBtn");
+    if (ns.vncOnline) {
+      if (btn) btn.innerHTML = "🖥️ Реальная Игра SS14 (C# LIVE)";
+      if (autoOpen && state.gameMode !== "native") {
+        setGameMode("native");
+      }
+      return;
+    }
+  } catch (_e) {}
+  if (autoOpen) {
+    setTimeout(() => checkNativeClientStatus(true), 2500);
+  }
 }
 
 function connectWebSocket() {
@@ -1728,9 +1747,28 @@ function openContextMenu(clientX, clientY, wx, wy) {
 
 async function setGameMode(mode) {
   state.gameMode = mode;
+  const nativeBtn = document.getElementById("modeNativeBtn");
+  if (nativeBtn) nativeBtn.classList.toggle("active", mode === "native");
   document.getElementById("modePlayBtn").classList.toggle("active", mode === "play");
   document.getElementById("modeGhostBtn").classList.toggle("active", mode === "ghost");
   document.getElementById("modeCctvBtn").classList.toggle("active", mode === "cctv");
+
+  const nativeWrapper = document.getElementById("nativeClientWrapper");
+  const nativeIframe = document.getElementById("nativeClientIframe");
+  if (mode === "native") {
+    if (nativeWrapper) nativeWrapper.classList.remove("hidden");
+    if (nativeIframe && (!nativeIframe.src || !nativeIframe.src.includes("/novnc/"))) {
+      nativeIframe.src = "/novnc/vnc_lite.html?autoconnect=true&scale=true&path=websockify";
+    }
+    setTimeout(() => {
+      try {
+        nativeIframe?.focus();
+      } catch (_e) {}
+    }, 150);
+    return;
+  } else {
+    if (nativeWrapper) nativeWrapper.classList.add("hidden");
+  }
 
   if (mode === "ghost") {
     const curAg = state.live?.agents?.find((a) => a.id === state.selectedAgentId);
@@ -1862,6 +1900,8 @@ function handleContinuousWasd(now) {
 // ============================================================================
 
 function bindUIEvents() {
+  const nativeBtn = document.getElementById("modeNativeBtn");
+  if (nativeBtn) nativeBtn.onclick = () => setGameMode("native");
   document.getElementById("modePlayBtn").onclick = () => setGameMode("play");
   document.getElementById("modeGhostBtn").onclick = () => setGameMode("ghost");
   document.getElementById("modeCctvBtn").onclick = () => setGameMode("cctv");
@@ -2075,6 +2115,7 @@ function bindUIEvents() {
 
   // Full SS14 Keyboard Shortcuts
   window.addEventListener("keydown", async (e) => {
+    if (state.gameMode === "native") return;
     if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) {
       if (e.key === "Escape") document.activeElement.blur();
       return;

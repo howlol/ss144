@@ -9,21 +9,46 @@ lobbyenabled = false
 soft_max_players = 64
 panic_bunker.enabled = false
 role_timers = false
+role_loadout_timers = false
 role_whitelist = false
+auto_pause_empty = false
+
+[events]
+enabled = false
+
+[ghost]
+role_time = 0.5
+quick_lottery = true
+
+[procgen]
+preload = false
+
+[shuttle]
+grid_fill = false
+auto_call_time = 0
+emergency = false
+arrivals = false
+preload_grids = false
+
+[afk]
+time = 0
+
+[ic]
+random_characters = true
 
 [net]
 port = 1212
 bindto = "0.0.0.0,::"
+max_rapid_connections = 413
+max_ip_connections = 413
 
 [status]
 enabled = true
-bind = "0.0.0.0:1212"
+bind = "*:1212"
 
 [auth]
 mode = 0
 
 [admin]
+afk_time = 0
 see_own_notes = true
-
-[aistation]
-bridge_port = 12120

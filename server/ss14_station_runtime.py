@@ -543,6 +543,12 @@ class SS14StationRuntime:
         self.map_data["objects"] = self.objects
         self.objects_by_uid = {int(o["uid"]): o for o in self.objects}
         self.floor_items_version: int = 1
+        self._bridge_command_queue: List[Dict[str, Any]] = []
+        self._last_csharp_chat_sig: str = ""
+
+    def queue_bridge_command(self, cmd: Dict[str, Any]) -> None:
+        if len(self._bridge_command_queue) < 100:
+            self._bridge_command_queue.append(cmd)
 
     def get_item_info(self, item_id: Optional[str]) -> Dict[str, Any]:
         if not item_id:
@@ -1018,6 +1024,13 @@ class SS14StationRuntime:
         agent.target_room = self.nearest_room_name(agent.target_x, agent.target_y)
         if task_desc:
             agent.current_task = task_desc
+        self.queue_bridge_command({
+            "action": "move_to",
+            "agentId": agent_id,
+            "x": float(agent.target_x),
+            "y": float(agent.target_y),
+            "task": agent.current_task,
+        })
         return True
 
     def command_agent_move_to_room(self, agent_id: str, room_name: str, task_desc: Optional[str] = None) -> bool:
@@ -1077,6 +1090,12 @@ class SS14StationRuntime:
 
         agent.last_speech = text
         agent.last_speech_time = time.time()
+        self.queue_bridge_command({
+            "action": "say",
+            "agentId": agent_id,
+            "text": raw_text.strip(),
+            "thought": agent.last_thought,
+        })
 
         return self.add_chat_message(
             speaker_uid=agent.uid,
@@ -1681,18 +1700,94 @@ class SS14StationRuntime:
             x=3.5,
             y=30.5,
         )
+        self.queue_bridge_command({
+            "action": "announce",
+            "sender": "CentComm",
+            "text": entry.message,
+        })
         return {"ok": True, "alert_level": self.alert_level, "announcement": entry.message}
 
     async def check_csharp_bridge(self) -> None:
         now = time.time()
-        if now - self._last_bridge_check < 6.0:
+        if now - self._last_bridge_check < 1.2:
             return
         self._last_bridge_check = now
         try:
-            async with httpx.AsyncClient(timeout=0.6) as client:
+            async with httpx.AsyncClient(timeout=0.8) as client:
                 resp = await client.get(f"{self.csharp_bridge_url}/state")
                 if resp.status_code == 200:
-                    self.csharp_bridge_online = True
+                    data = resp.json()
+                    if isinstance(data, dict) and "engine" in data:
+                        self.csharp_bridge_online = True
+                        existing_ids = {a.get("id") for a in data.get("agents", []) if isinstance(a, dict)}
+                        if not hasattr(self, "_csharp_spawned_ids"):
+                            self._csharp_spawned_ids = set()
+                        if len(existing_ids) == 0 and len(self._csharp_spawned_ids) > 0:
+                            # Server restarted round
+                            self._csharp_spawned_ids.clear()
+                        self._csharp_spawned_ids.update(existing_ids)
+
+                        # Spawn any AI crew members that aren't yet in C# Content.Server
+                        for ag in list(self.agents.values()):
+                            if ag.id not in self._csharp_spawned_ids and not ag.is_ghost:
+                                self._csharp_spawned_ids.add(ag.id)
+                                await client.post(
+                                    f"{self.csharp_bridge_url}/command",
+                                    json={
+                                        "action": "spawn_agent",
+                                        "agentId": ag.id,
+                                        "name": ag.name,
+                                        "jobId": ag.job,
+                                        "department": ag.department,
+                                        "personality": ag.personality,
+                                        "secretObjective": ag.secret_objective,
+                                        "isAntagonist": ag.is_antagonist,
+                                        "x": float(ag.x),
+                                        "y": float(ag.y),
+                                    },
+                                )
+                                await client.post(
+                                    f"{self.csharp_bridge_url}/command",
+                                    json={
+                                        "action": "move_to",
+                                        "agentId": ag.id,
+                                        "x": float(ag.x),
+                                        "y": float(ag.y),
+                                        "task": ag.current_task,
+                                    },
+                                )
+
+                        # Flush queued AI commands into C# Content.Server
+                        while self._bridge_command_queue:
+                            cmd = self._bridge_command_queue.pop(0)
+                            await client.post(f"{self.csharp_bridge_url}/command", json=cmd)
+
+                        # Sync human player chat from C# Content.Server into Python orchestrator
+                        c_chats = data.get("chat", [])
+                        if c_chats:
+                            last_c = c_chats[-1]
+                            sig = f"{last_c.get('SpeakerName')}:{last_c.get('Message')}"
+                            if sig != self._last_csharp_chat_sig:
+                                self._last_csharp_chat_sig = sig
+                                spk_name = str(last_c.get("SpeakerName") or "Player")
+                                msg_txt = str(last_c.get("Message") or "")
+                                known_names = {a.name for a in self.agents.values()}
+                                if msg_txt and spk_name not in known_names:
+                                    self.add_chat_message(
+                                        speaker_uid=int(last_c.get("SpeakerUid") or 9999),
+                                        speaker_id="native-player",
+                                        speaker_name=spk_name,
+                                        speaker_job="Crew",
+                                        speaker_dept="Station",
+                                        channel=str(last_c.get("Channel") or "Local"),
+                                        message=msg_txt,
+                                        x=float(last_c.get("X") or 0.0),
+                                        y=float(last_c.get("Y") or 0.0),
+                                    )
+                    else:
+                        self.csharp_bridge_online = True
+                else:
+                    self.csharp_bridge_online = False
         except Exception:
             self.csharp_bridge_online = False
 

@@ -12,17 +12,31 @@
     <canvas id="stationCanvas"></canvas>
     <div id="crtOverlay" class="crt-overlay hidden"></div>
 
+    <!-- REAL NATIVE C# SPACE STATION 14 (Content.Client + Content.Server via Xvfb/noVNC) -->
+    <div id="nativeClientWrapper" class="native-client-wrapper hidden">
+      <iframe
+        id="nativeClientIframe"
+        src="about:blank"
+        class="native-client-iframe"
+        allow="autoplay; clipboard-read; clipboard-write; fullscreen"
+      ></iframe>
+    </div>
+
     <!-- ================================================================== -->
     <!-- 1. TOP-LEFT SS14 NANO GAME MENU BAR (Content.Client TopButtonBar) -->
     <!-- ================================================================== -->
     <nav class="ss14-top-bar">
+      <button id="modeNativeBtn" class="ss14-top-btn native-top-btn" title="Реальный нативный C# движок Space Station 14 (Content.Client + Content.Server OpenGL)">
+        🖥️ Реальная Игра SS14 (C#)
+      </button>
+
       <button id="openJoinModalBtn" class="ss14-top-btn brand-btn" title="Лобби станции / Создать или сменить персонажа (ESC)">
         <span class="ss14-logo-badge">SS14</span>
         <span>Лобби</span>
       </button>
 
-      <button id="modePlayBtn" class="ss14-top-btn active" title="Режим игры за персонажа (WASD, руки, бой, терминалы)">
-        🎮 Играть
+      <button id="modePlayBtn" class="ss14-top-btn active" title="Быстрый 2D-режим игры в браузере (WASD, руки, бой, терминалы)">
+        🎮 2D Клиент
       </button>
       <button id="modeGhostBtn" class="ss14-top-btn ghost-top-btn" title="Режим Призрака-Наблюдателя (MobObserver, клавиша G)">
         👻 Гост [G]

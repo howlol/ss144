@@ -632,3 +632,88 @@ async def websocket_endpoint(ws: WebSocket):
         connected_clients.discard(ws)
     except Exception:
         connected_clients.discard(ws)
+
+
+# ============================================================================
+# Native Space Station 14 (Content.Client + Content.Server) noVNC Stream Proxy
+# ============================================================================
+
+@app.get("/api/native_status")
+async def get_native_status():
+    vnc_online = False
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", 5900), timeout=0.3)
+        writer.close()
+        await writer.wait_closed()
+        vnc_online = True
+    except Exception:
+        vnc_online = False
+    return {
+        "vncOnline": vnc_online,
+        "csharpServerOnline": runtime.csharp_bridge_online,
+    }
+
+
+@app.get("/novnc/{file_path:path}")
+async def serve_novnc_static(file_path: str):
+    if not file_path or file_path == "/":
+        file_path = "vnc_lite.html"
+    novnc_root = Path("/usr/share/novnc")
+    target = (novnc_root / file_path).resolve()
+    if target.is_file() and str(target).startswith(str(novnc_root)):
+        return FileResponse(target)
+    return JSONResponse(status_code=404, content={"error": "noVNC file not found"})
+
+
+@app.websocket("/websockify")
+async def websockify_vnc_proxy(ws: WebSocket):
+    """Bridges noVNC WebSocket directly to local x11vnc (127.0.0.1:5900) over port 8000."""
+    proto_hdr = ws.headers.get("sec-websocket-protocol") or ""
+    subproto = "binary" if "binary" in proto_hdr else None
+    await ws.accept(subprotocol=subproto)
+    try:
+        reader, writer = await asyncio.open_connection("127.0.0.1", 5900)
+    except Exception:
+        await ws.close()
+        return
+
+    async def ws_to_tcp():
+        try:
+            while True:
+                msg = await ws.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    break
+                if "bytes" in msg and msg["bytes"] is not None:
+                    writer.write(msg["bytes"])
+                    await writer.drain()
+                elif "text" in msg and msg["text"] is not None:
+                    writer.write(msg["text"].encode("latin1"))
+                    await writer.drain()
+        except Exception:
+            pass
+        finally:
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+    async def tcp_to_ws():
+        try:
+            while True:
+                data = await reader.read(65536)
+                if not data:
+                    break
+                await ws.send_bytes(data)
+        except Exception:
+            pass
+
+    t1 = asyncio.create_task(ws_to_tcp())
+    t2 = asyncio.create_task(tcp_to_ws())
+    await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+    t1.cancel()
+    t2.cancel()
+    try:
+        writer.close()
+    except Exception:
+        pass
+
