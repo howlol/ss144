@@ -1,0 +1,47 @@
+name: Build Space Station 14 Server (with AIStation Mod)
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ss14-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build SS14 Content.Server (with AIStation Mod)
+        run: |
+          git clone --depth 1 https://github.com/space-wizards/space-station-14.git /tmp/ss14-src
+          cd /tmp/ss14-src
+          git submodule update --init --recursive --depth 1
+          mkdir -p /tmp/ss14-src/Content.Server/AIStation
+          cp -r "$GITHUB_WORKSPACE/ss14_mod/Content.Server/AIStation/"* /tmp/ss14-src/Content.Server/AIStation/
+          dotnet build Content.Server/Content.Server.csproj -c Release --no-self-contained \
+            -p:TreatWarningsAsErrors=false \
+            -p:WarningsAsErrors="" \
+            -p:RunAnalyzers=false \
+            -p:RunAnalyzersDuringBuild=false
+
+      - name: Push Compiled Content.Server.dll Patch Tag
+        run: |
+          mkdir -p /tmp/patch-out
+          cp /tmp/ss14-src/bin/Content.Server/Content.Server.dll /tmp/patch-out/
+          cp /tmp/ss14-src/bin/Content.Server/Content.Server.pdb /tmp/patch-out/ || true
+          cd /tmp/patch-out
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Compiled Content.Server.dll with AIStation ActiveNPC + Door + Coordinate patch"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:refs/tags/ss14-server-patch

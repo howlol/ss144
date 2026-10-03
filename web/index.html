@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Station 14 — Реальная Нативная Игра (Content.Client + Content.Server)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #000000;
+      color: #f1f5f9;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+
+    /* 100% FULLSCREEN NATIVE C# SPACE STATION 14 (Content.Client via X11/OpenGL) */
+    #screen {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    /* Compact floating control pill in bottom-left corner */
+    .ss14-floating-pill {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.86);
+      backdrop-filter: blur(6px);
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 4px 8px;
+      z-index: 50;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+      font-size: 12px;
+    }
+
+    .pill-btn {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #475569;
+      border-radius: 4px;
+      padding: 4px 9px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.12s ease;
+    }
+
+    .pill-btn:hover {
+      background: #334155;
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    .pill-btn.api-active {
+      border-color: #22c55e;
+      background: rgba(22, 163, 74, 0.25);
+      color: #86efac;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f59e0b;
+      display: inline-block;
+    }
+
+    .status-dot.online {
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+    }
+
+    /* OpenAI API Configuration Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-backdrop.hidden {
+      display: none !important;
+    }
+
+    .modal-card {
+      width: 520px;
+      max-width: 94vw;
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 12px 16px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      font-size: 12.5px;
+      color: #cbd5e1;
+    }
+
+    .form-label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-weight: 600;
+      font-size: 12px;
+      color: #e2e8f0;
+    }
+
+    .text-input {
+      background: #020617;
+      border: 1px solid #475569;
+      border-radius: 5px;
+      padding: 8px 10px;
+      color: #f8fafc;
+      font-size: 12.5px;
+      font-family: monospace;
+    }
+
+    .text-input:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff;
+      border: 1px solid #3b82f6;
+      border-radius: 5px;
+      padding: 7px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-success {
+      background: #16a34a;
+      color: #ffffff;
+      border: 1px solid #22c55e;
+      border-radius: 5px;
+      padding: 7px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .api-result-box {
+      padding: 9px 11px;
+      border-radius: 6px;
+      background: #020617;
+      border: 1px solid #334155;
+      font-size: 12px;
+      line-height: 1.45;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <!-- 100% REAL NATIVE C# SPACE STATION 14 (Content.Client connected to Content.Server) -->
+  <div id="screen"></div>
+
+  <!-- Live C# Engine Boot Progress (shown only while Xvfb/Content.Client is starting) -->
+  <div id="bootOverlay" style="position:fixed;inset:0;background:#020617;display:flex;align-items:center;justify-content:center;z-index:40;padding:20px;">
+    <div style="width:640px;max-width:95vw;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,0.85);">
+      <div style="font-size:16px;font-weight:700;color:#38bdf8;margin-bottom:8px;">
+        🚀 Запуск реального C# движка Space Station 14 (Content.Server + Content.Client OpenGL)...
+      </div>
+      <div style="font-size:12.5px;color:#94a3b8;margin-bottom:12px;">
+        Подождите ~20–30 секунд при первом старте: загружаются бинарники .NET 10, станция NSS Saltern и графический клиент Content.Client (Xvfb + Mesa OpenGL). Окно игры откроется автоматически.
+      </div>
+      <pre id="bootLogPre" style="background:#020617;border:1px solid #1e293b;border-radius:6px;padding:10px;font-size:11.5px;color:#86efac;font-family:monospace;white-space:pre-wrap;min-height:110px;max-height:220px;overflow-y:auto;">Инициализация C# движка Space Station 14...</pre>
+    </div>
+  </div>
+
+  <!-- Minimal floating pill for OpenAI API config & in-game Ghost/Sandbox shortcut -->
+  <div class="ss14-floating-pill">
+    <span id="vncDot" class="status-dot"></span>
+    <span id="vncStatusText" style="color:#94a3b8;font-weight:600;">Подключение к SS14 C#...</span>
+    <button id="sendSandboxKeyBtn" class="pill-btn" title="Открыть меню Сэндбокса / Режим Госта / Спавнер прямо в C# игре (клавиша G)">
+      👻 Гост / Сэндбокс [G]
+    </button>
+    <button id="sendAdminKeyBtn" class="pill-btn" title="Открыть Админ-меню Space Station 14 (клавиша F7)">
+      🛡️ Админ [F7]
+    </button>
+    <button id="openApiModalBtn" class="pill-btn" title="Настроить OpenAI API ключ и URL для ИИ-экипажа внутри Content.Server">
+      ⚙️ OpenAI API (<span id="apiCallsBadge">0</span>)
+    </button>
+  </div>
+
+  <!-- OpenAI API Configuration Modal -->
+  <div id="apiModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>⚙️ Настройка OpenAI API для ИИ-Экипажа в C# Content.Server</h2>
+        <button id="closeApiModalBtn" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Все ИИ-персонажи внутри реального C# сервера <strong>Space Station 14 (<code>Content.Server</code>)</strong>
+          обращаются к вашей модели по стандарту OpenAI (<code>/v1/chat/completions</code>), считают себя живыми членами экипажа NSS Saltern и общаются в реальном игровом чате и по рации.
+        </p>
+        <label class="form-label">
+          <span>OpenAI Base URL Endpoint</span>
+          <input id="apiBaseUrlInput" type="text" class="text-input" placeholder="https://api.openai.com/v1" />
+        </label>
+        <label class="form-label">
+          <span>API Key (Bearer Token)</span>
+          <input id="apiKeyInput" type="password" class="text-input" placeholder="sk-..." />
+        </label>
+        <label class="form-label">
+          <span>Модель (Model ID)</span>
+          <input id="apiModelInput" type="text" class="text-input" placeholder="gpt-4o-mini" />
+        </label>
+        <div id="apiTestResult" class="api-result-box">
+          Статус: введите API ключ и нажмите «Сохранить и запустить ИИ»
+        </div>
+        <div class="modal-actions">
+          <button id="testApiBtn" class="btn-primary">🔌 Проверить запрос к API</button>
+          <button id="saveApiBtn" class="btn-success">💾 Сохранить и запустить ИИ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import RFB from '/novnc/core/rfb.js';
+
+    let rfb = null;
+    const screenEl = document.getElementById('screen');
+    const vncDot = document.getElementById('vncDot');
+    const vncStatusText = document.getElementById('vncStatusText');
+    const bootOverlay = document.getElementById('bootOverlay');
+    const bootLogPre = document.getElementById('bootLogPre');
+    let isConnected = false;
+
+    async function pollBootStatus() {
+      if (isConnected) return;
+      try {
+        const res = await fetch('/api/native_status');
+        const data = await res.json();
+        if (data.bootstrapLog && bootLogPre) {
+          bootLogPre.textContent = data.bootstrapLog;
+          bootLogPre.scrollTop = bootLogPre.scrollHeight;
+        }
+      } catch (_e) {}
+      if (!isConnected) {
+        setTimeout(pollBootStatus, 1500);
+      }
+    }
+    pollBootStatus();
+
+    function connectNativeSs14() {
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const host = window.location.hostname;
+      const port = window.location.port ? (':' + window.location.port) : '';
+      const url = `${proto}://${host}${port}/websockify`;
+
+      try {
+        rfb = new RFB(screenEl, url);
+        rfb.scaleViewport = true;
+        rfb.resizeSession = false;
+        rfb.focusOnClick = true;
+
+        rfb.addEventListener('connect', () => {
+          isConnected = true;
+          if (bootOverlay) bootOverlay.style.display = 'none';
+          vncDot.classList.add('online');
+          vncStatusText.textContent = 'SS14 C# Live';
+          vncStatusText.style.color = '#86efac';
+          rfb.focus();
+        });
+
+        rfb.addEventListener('disconnect', () => {
+          isConnected = false;
+          vncDot.classList.remove('online');
+          vncStatusText.textContent = 'Переподключение...';
+          vncStatusText.style.color = '#f59e0b';
+          setTimeout(connectNativeSs14, 1500);
+        });
+      } catch (_e) {
+        setTimeout(connectNativeSs14, 1500);
+      }
+    }
+
+    connectNativeSs14();
+
+    screenEl.addEventListener('click', () => {
+      try { rfb && rfb.focus(); } catch (_e) {}
+    });
+
+    // Send 'g' (Sandbox / Ghost menu in SS14) directly to Content.Client
+    document.getElementById('sendSandboxKeyBtn').onclick = () => {
+      if (rfb) {
+        rfb.focus();
+        rfb.sendKey(0x0067, 'KeyG', true);
+        setTimeout(() => rfb.sendKey(0x0067, 'KeyG', false), 60);
+      }
+    };
+
+    // Send 'F7' (Admin menu in SS14) directly to Content.Client
+    document.getElementById('sendAdminKeyBtn').onclick = () => {
+      if (rfb) {
+        rfb.focus();
+        rfb.sendKey(0xffc4, 'F7', true);
+        setTimeout(() => rfb.sendKey(0xffc4, 'F7', false), 60);
+      }
+    };
+
+    // OpenAI API Configuration + Browser-Direct & Backend LLM Orchestration
+    const llmCfg = {
+      apiKey: localStorage.getItem('ss14_openai_key') || '',
+      baseUrl: localStorage.getItem('ss14_openai_url') || 'https://api.openai.com/v1',
+      model: localStorage.getItem('ss14_openai_model') || 'gpt-4o-mini',
+      calls: 0,
+      inFlight: false,
+    };
+
+    const apiModal = document.getElementById('apiModal');
+    const openApiModalBtn = document.getElementById('openApiModalBtn');
+    const apiCallsBadge = document.getElementById('apiCallsBadge');
+    const apiResultBox = document.getElementById('apiTestResult');
+
+    document.getElementById('apiBaseUrlInput').value = llmCfg.baseUrl;
+    document.getElementById('apiModelInput').value = llmCfg.model;
+    document.getElementById('apiKeyInput').value = llmCfg.apiKey;
+
+    if (llmCfg.apiKey) {
+      openApiModalBtn.classList.add('api-active');
+      fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: llmCfg.apiKey,
+          baseUrl: llmCfg.baseUrl,
+          model: llmCfg.model,
+          tickIntervalSec: 2.5,
+        }),
+      }).catch(() => {});
+    }
+
+    openApiModalBtn.onclick = () => {
+      apiModal.classList.remove('hidden');
+    };
+
+    document.getElementById('closeApiModalBtn').onclick = () => {
+      apiModal.classList.add('hidden');
+      try { rfb && rfb.focus(); } catch (_e) {}
+    };
+
+    function readForm() {
+      llmCfg.baseUrl = document.getElementById('apiBaseUrlInput').value.trim().replace(/\/+$/, '') || 'https://api.openai.com/v1';
+      llmCfg.apiKey = document.getElementById('apiKeyInput').value.trim();
+      llmCfg.model = document.getElementById('apiModelInput').value.trim() || 'gpt-4o-mini';
+      localStorage.setItem('ss14_openai_url', llmCfg.baseUrl);
+      localStorage.setItem('ss14_openai_key', llmCfg.apiKey);
+      localStorage.setItem('ss14_openai_model', llmCfg.model);
+      openApiModalBtn.classList.toggle('api-active', Boolean(llmCfg.apiKey));
+    }
+
+    async function runDirectLlmStep() {
+      if (!llmCfg.apiKey || llmCfg.inFlight) return null;
+      llmCfg.inFlight = true;
+      const t0 = performance.now();
+      try {
+        const pRes = await fetch('/api/llm/next_prompt');
+        const pData = await pRes.json();
+        if (!pData.ok) return { ok: false, error: 'Нет доступного ИИ-агента' };
+
+        const endpoint = `${llmCfg.baseUrl}/chat/completions`;
+        const cRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${llmCfg.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: llmCfg.model,
+            messages: [
+              { role: 'system', content: pData.systemPrompt },
+              { role: 'user', content: pData.userPrompt },
+            ],
+            temperature: 0.78,
+            max_tokens: 260,
+          }),
+        });
+
+        const latencyMs = Math.round(performance.now() - t0);
+        if (!cRes.ok) {
+          const errTxt = await cRes.text();
+          return { ok: false, error: `HTTP ${cRes.status}: ${errTxt.slice(0, 160)}` };
+        }
+        const cData = await cRes.json();
+        const rawContent = cData?.choices?.[0]?.message?.content || '{}';
+        const aRes = await fetch('/api/llm/apply_decision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: pData.agentId,
+            rawContent,
+            latencyMs,
+            model: llmCfg.model,
+          }),
+        });
+        const applied = await aRes.json();
+        llmCfg.calls += 1;
+        apiCallsBadge.textContent = String(llmCfg.calls);
+        return { ok: true, agentName: pData.agentName, decision: applied.decision };
+      } catch (err) {
+        return { ok: false, error: err?.message || String(err) };
+      } finally {
+        llmCfg.inFlight = false;
+      }
+    }
+
+    document.getElementById('saveApiBtn').onclick = async () => {
+      readForm();
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: llmCfg.apiKey,
+          baseUrl: llmCfg.baseUrl,
+          model: llmCfg.model,
+          tickIntervalSec: 2.5,
+        }),
+      }).catch(() => {});
+      apiModal.classList.add('hidden');
+      try { rfb && rfb.focus(); } catch (_e) {}
+      runDirectLlmStep();
+    };
+
+    document.getElementById('testApiBtn').onclick = async () => {
+      readForm();
+      apiResultBox.textContent = '⏳ Отправка запроса к OpenAI API и передача команды в C# Content.Server...';
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: llmCfg.apiKey,
+          baseUrl: llmCfg.baseUrl,
+          model: llmCfg.model,
+          tickIntervalSec: 2.5,
+        }),
+      }).catch(() => {});
+
+      const res = await runDirectLlmStep();
+      if (res && res.ok) {
+        const d = res.decision || {};
+        apiResultBox.innerHTML = `✅ <strong>${res.agentName} (в C# Content.Server):</strong><br/>💭 Мысль: «${d.thought || '—'}»<br/>🗣️ Сказал в игру: «${d.say || '—'}»`;
+      } else {
+        apiResultBox.textContent = `❌ Ошибка: ${res?.error || 'проверьте API Key и URL'}`;
+      }
+    };
+
+    setInterval(() => {
+      if (llmCfg.apiKey && !llmCfg.inFlight) {
+        runDirectLlmStep();
+      }
+    }, 3000);
+  </script>
+</body>
+</html>

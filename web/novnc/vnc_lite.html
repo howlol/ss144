@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Space Station 14 — Native C# Client (OpenGL)</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #020409;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    #loading_banner {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #334155;
+      color: #38bdf8;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 10;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #loading_banner.hidden {
+      opacity: 0;
+    }
+    #screen {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+  </style>
+  <script type="module" crossorigin="anonymous">
+    import RFB from './core/rfb.js';
+    let rfb;
+    const banner = document.getElementById('loading_banner');
+
+    function connectVnc() {
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const host = window.location.hostname;
+      const port = window.location.port ? (':' + window.location.port) : '';
+      const url = `${proto}://${host}${port}/websockify`;
+
+      try {
+        rfb = new RFB(document.getElementById('screen'), url);
+        rfb.scaleViewport = true;
+        rfb.resizeSession = false;
+        rfb.focusOnClick = true;
+
+        rfb.addEventListener('connect', () => {
+          if (banner) {
+            banner.textContent = '🟢 Нативный C# клиент Space Station 14 подключён (кликните по экрану для управления)';
+            setTimeout(() => banner.classList.add('hidden'), 4000);
+          }
+          rfb.focus();
+        });
+
+        rfb.addEventListener('disconnect', () => {
+          if (banner) {
+            banner.classList.remove('hidden');
+            banner.textContent = '⏳ Переподключение к X11/OpenGL окну Space Station 14...';
+          }
+          setTimeout(connectVnc, 1500);
+        });
+      } catch (e) {
+        setTimeout(connectVnc, 1500);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', connectVnc);
+    window.addEventListener('click', () => { try { rfb && rfb.focus(); } catch(_e){} });
+  </script>
+</head>
+<body>
+  <div id="loading_banner">⏳ Подключение к нативному C# клиенту Space Station 14 (OpenGL)...</div>
+  <div id="screen"></div>
+</body>
+</html>
