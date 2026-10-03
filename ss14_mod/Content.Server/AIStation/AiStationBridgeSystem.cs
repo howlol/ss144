@@ -277,8 +277,7 @@ public sealed class AiStationBridgeSystem : EntitySystem
                     EnsureComp<ActiveNPCComponent>(moveUid);
                     var xform = Transform(moveUid);
                     var targetCoords = new EntityCoordinates(xform.ParentUid.IsValid() ? xform.ParentUid : xform.GridUid ?? moveUid, cmd.X, cmd.Y);
-                    var steering = _steering.Register(moveUid, targetCoords);
-                    steering.Flags = PathfindingBreadcrumbFlag.Door | PathfindingBreadcrumbFlag.Access;
+                    _steering.Register(moveUid, targetCoords);
                     if (!string.IsNullOrEmpty(cmd.Task))
                         moveComp.CurrentTask = cmd.Task;
                     if (!string.IsNullOrEmpty(cmd.Thought))
