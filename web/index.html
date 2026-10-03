@@ -212,6 +212,19 @@
   <!-- 100% REAL NATIVE C# SPACE STATION 14 (Content.Client connected to Content.Server) -->
   <div id="screen"></div>
 
+  <!-- Live C# Engine Boot Progress (shown only while Xvfb/Content.Client is starting) -->
+  <div id="bootOverlay" style="position:fixed;inset:0;background:#020617;display:flex;align-items:center;justify-content:center;z-index:40;padding:20px;">
+    <div style="width:640px;max-width:95vw;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,0.85);">
+      <div style="font-size:16px;font-weight:700;color:#38bdf8;margin-bottom:8px;">
+        🚀 Запуск реального C# движка Space Station 14 (Content.Server + Content.Client OpenGL)...
+      </div>
+      <div style="font-size:12.5px;color:#94a3b8;margin-bottom:12px;">
+        Подождите ~20–30 секунд при первом старте: загружаются бинарники .NET 10, станция NSS Saltern и графический клиент Content.Client (Xvfb + Mesa OpenGL). Окно игры откроется автоматически.
+      </div>
+      <pre id="bootLogPre" style="background:#020617;border:1px solid #1e293b;border-radius:6px;padding:10px;font-size:11.5px;color:#86efac;font-family:monospace;white-space:pre-wrap;min-height:110px;max-height:220px;overflow-y:auto;">Инициализация C# движка Space Station 14...</pre>
+    </div>
+  </div>
+
   <!-- Minimal floating pill for OpenAI API config & in-game Ghost/Sandbox shortcut -->
   <div class="ss14-floating-pill">
     <span id="vncDot" class="status-dot"></span>
@@ -269,6 +282,25 @@
     const screenEl = document.getElementById('screen');
     const vncDot = document.getElementById('vncDot');
     const vncStatusText = document.getElementById('vncStatusText');
+    const bootOverlay = document.getElementById('bootOverlay');
+    const bootLogPre = document.getElementById('bootLogPre');
+    let isConnected = false;
+
+    async function pollBootStatus() {
+      if (isConnected) return;
+      try {
+        const res = await fetch('/api/native_status');
+        const data = await res.json();
+        if (data.bootstrapLog && bootLogPre) {
+          bootLogPre.textContent = data.bootstrapLog;
+          bootLogPre.scrollTop = bootLogPre.scrollHeight;
+        }
+      } catch (_e) {}
+      if (!isConnected) {
+        setTimeout(pollBootStatus, 1500);
+      }
+    }
+    pollBootStatus();
 
     function connectNativeSs14() {
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -283,6 +315,8 @@
         rfb.focusOnClick = true;
 
         rfb.addEventListener('connect', () => {
+          isConnected = true;
+          if (bootOverlay) bootOverlay.style.display = 'none';
           vncDot.classList.add('online');
           vncStatusText.textContent = 'SS14 C# Live';
           vncStatusText.style.color = '#86efac';
@@ -290,6 +324,7 @@
         });
 
         rfb.addEventListener('disconnect', () => {
+          isConnected = false;
           vncDot.classList.remove('online');
           vncStatusText.textContent = 'Переподключение...';
           vncStatusText.style.color = '#f59e0b';

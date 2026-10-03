@@ -80,6 +80,15 @@ async def ai_cognition_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import subprocess
+    ensure_script = Path(__file__).resolve().parent.parent / "scripts" / "ensure_native_ss14.sh"
+    if ensure_script.is_file():
+        subprocess.Popen(
+            ["bash", str(ensure_script)],
+            stdout=open("/tmp/ss14_bootstrap.log", "a"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
     t1 = asyncio.create_task(physics_and_broadcast_loop())
     t2 = asyncio.create_task(ai_cognition_loop())
     yield
@@ -655,9 +664,21 @@ async def get_native_status():
         vnc_online = True
     except Exception:
         vnc_online = False
+
+    logs: List[str] = []
+    for p in ("/tmp/ss14_bootstrap.log", "/tmp/ss14_server.log", "/tmp/ss14_client.log"):
+        try:
+            fp = Path(p)
+            if fp.is_file():
+                lines = fp.read_text(errors="ignore").splitlines()[-4:]
+                logs.extend(lines)
+        except Exception:
+            pass
+
     return {
         "vncOnline": vnc_online,
         "csharpServerOnline": runtime.csharp_bridge_online,
+        "bootstrapLog": "\n".join(logs[-8:]),
     }
 
 
@@ -665,10 +686,11 @@ async def get_native_status():
 async def serve_novnc_static(file_path: str):
     if not file_path or file_path == "/":
         file_path = "vnc_lite.html"
-    novnc_root = Path("/usr/share/novnc")
-    target = (novnc_root / file_path).resolve()
-    if target.is_file() and str(target).startswith(str(novnc_root)):
-        return FileResponse(target)
+    for root in (WEB_ROOT / "novnc", Path("/usr/share/novnc")):
+        if root.is_dir():
+            target = (root / file_path).resolve()
+            if target.is_file() and str(target).startswith(str(root.resolve())):
+                return FileResponse(target)
     return JSONResponse(status_code=404, content={"error": "noVNC file not found"})
 
 
