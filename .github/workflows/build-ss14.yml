@@ -1,8 +1,8 @@
-name: Build Space Station 14 AI Server
+name: Build Space Station 14 Server (with AIStation Mod)
 
 on:
   push:
-    branches: [ main, master, "arena/**" ]
+    branches: ["**"]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   build-ss14-server:
-    name: Build Modded SS14 Content.Server & Client (Linux x64)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -19,51 +18,30 @@ jobs:
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
 
-      - name: Download Debian 12 Bookworm Xvfb + Mesa OpenGL + noVNC packages
+      - name: Build SS14 Content.Server (with AIStation Mod)
         run: |
-          mkdir -p /tmp/bundle-stage/debs
-          docker run --rm -v /tmp/bundle-stage/debs:/debs debian:bookworm bash -c '
-            apt-get update -qq &&
-            apt-get install -y -qq --download-only -o Dir::Cache::archives=/debs \
-              xvfb x11vnc openbox novnc python3-websockify python3-numpy \
-              libgl1-mesa-dri libglx-mesa0 libgl1 libegl-mesa0 libgbm1 \
-              libopenal1 libfluidsynth3 libxcursor1 libxrandr2 libxi6 \
-              libxinerama1 libxxf86vm1 x11-xkb-utils xkb-data xauth
-          '
-          rm -f /tmp/bundle-stage/debs/lock /tmp/bundle-stage/debs/partial/* 2>/dev/null || true
-          ls -lh /tmp/bundle-stage/debs | head -n 20
-
-      - name: Build SS14 Server (with AIStation Mod) and Client
-        run: |
-          chmod +x scripts/build_ss14_server.sh
-          ./scripts/build_ss14_server.sh
+          git clone --depth 1 https://github.com/space-wizards/space-station-14.git /tmp/ss14-src
           cd /tmp/ss14-src
-          dotnet restore Content.Client/Content.Client.csproj
-          dotnet build Content.Client/Content.Client.csproj -c Release --no-restore /p:TargetOs=Linux -p:TreatWarningsAsErrors=false -p:WarningsAsErrors="" -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false /m
+          git submodule update --init --recursive --depth 1
+          mkdir -p /tmp/ss14-src/Content.Server/AIStation
+          cp -r "$GITHUB_WORKSPACE/ss14_mod/Content.Server/AIStation/"* /tmp/ss14-src/Content.Server/AIStation/
+          dotnet build Content.Server/Content.Server.csproj -c Release --no-self-contained \
+            -p:TreatWarningsAsErrors=false \
+            -p:WarningsAsErrors="" \
+            -p:RunAnalyzers=false \
+            -p:RunAnalyzersDuringBuild=false
 
-      - name: Stage Self-Contained Runtime Bundle and Push Tag
+      - name: Push Compiled Content.Server.dll Patch Tag
         run: |
-          mkdir -p /tmp/bundle-stage/dotnet
-          curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-          chmod +x /tmp/dotnet-install.sh
-          /tmp/dotnet-install.sh --channel 10.0 --runtime dotnet --install-dir /tmp/bundle-stage/dotnet
-
-          mkdir -p /tmp/bundle-stage/ss14/bin
-          cp -r /tmp/ss14-src/bin/Content.Server /tmp/bundle-stage/ss14/bin/
-          cp -r /tmp/ss14-src/bin/Content.Client /tmp/bundle-stage/ss14/bin/
-          cp -r /tmp/ss14-src/Resources /tmp/bundle-stage/ss14/
-
-          mkdir -p /tmp/tag-repo
-          cd /tmp/tag-repo
+          mkdir -p /tmp/patch-out
+          cp /tmp/ss14-src/bin/Content.Server/Content.Server.dll /tmp/patch-out/
+          cp /tmp/ss14-src/bin/Content.Server/Content.Server.pdb /tmp/patch-out/ || true
+          cd /tmp/patch-out
           git init
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          tar -czf - -C /tmp/bundle-stage debs dotnet ss14 | split -b 45M - bundle.tar.gz.part_
-          ls -lh bundle.tar.gz.part_*
-          git add bundle.tar.gz.part_*
-          git commit -m "Native SS14 Server + Client + Xvfb Bookworm Bundle"
-          git tag -f ss14-bookworm-bundle
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" refs/tags/ss14-bookworm-bundle
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Compiled Content.Server.dll with AIStation ActiveNPC + Door + Coordinate patch"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:refs/tags/ss14-server-patch

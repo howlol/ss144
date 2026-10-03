@@ -837,7 +837,7 @@ class SS14StationRuntime:
                 personality=cfg["personality"],
                 secret_objective=cfg["secret_objective"],
                 is_antagonist=cfg["is_antagonist"],
-                browser_controlled=(idx == 0),
+                browser_controlled=False,
                 current_room=room,
                 current_task=f"Дежурство в отсеке {room}",
                 access=list(cfg["access"]),

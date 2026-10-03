@@ -107,7 +107,14 @@ app.mount("/static", StaticFiles(directory=str(WEB_ROOT)), name="static")
 
 @app.get("/")
 async def index_page():
-    return FileResponse(WEB_ROOT / "index.html")
+    return FileResponse(
+        WEB_ROOT / "index.html",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.get("/api/bootstrap")

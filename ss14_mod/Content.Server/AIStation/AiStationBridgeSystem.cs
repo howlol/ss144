@@ -13,6 +13,7 @@ using Content.Server.Doors.Systems;
 using Content.Server.GameTicking;
 using Content.Server.Hands.Systems;
 using Content.Server.Mind;
+using Content.Server.NPC.Pathfinding;
 using Content.Server.NPC.Systems;
 using Content.Server.Roles;
 using Content.Server.Station.Components;
@@ -26,9 +27,11 @@ using Content.Shared.Interaction;
 using Content.Shared.Mobs;
 using Content.Shared.Mobs.Components;
 using Content.Shared.Mobs.Systems;
+using Content.Shared.NPC;
 using Content.Shared.Pinpointer;
 using Content.Shared.Preferences;
 using Content.Shared.Roles;
+using Content.Shared.SSDIndicator;
 using Content.Shared.Station.Components;
 using Content.Shared.Station.Systems;
 using Content.Shared.SurveillanceCamera.Components;
@@ -270,9 +273,12 @@ public sealed class AiStationBridgeSystem : EntitySystem
             case "move_to":
                 if (TryFindAgentEntity(cmd.AgentId, out var moveUid, out var moveComp))
                 {
+                    RemComp<SSDIndicatorComponent>(moveUid);
+                    EnsureComp<ActiveNPCComponent>(moveUid);
                     var xform = Transform(moveUid);
                     var targetCoords = new EntityCoordinates(xform.ParentUid.IsValid() ? xform.ParentUid : xform.GridUid ?? moveUid, cmd.X, cmd.Y);
-                    _steering.Register(moveUid, targetCoords);
+                    var steering = _steering.Register(moveUid, targetCoords);
+                    steering.Flags = PathfindingBreadcrumbFlag.Door | PathfindingBreadcrumbFlag.Access;
                     if (!string.IsNullOrEmpty(cmd.Task))
                         moveComp.CurrentTask = cmd.Task;
                     if (!string.IsNullOrEmpty(cmd.Thought))
@@ -426,6 +432,18 @@ public sealed class AiStationBridgeSystem : EntitySystem
             _roles.MindAddJobRole(mind.Owner, mind.Comp, silent: true, jobPrototype: jobId);
         }
 
+        RemComp<SSDIndicatorComponent>(entity);
+        EnsureComp<ActiveNPCComponent>(entity);
+
+        if (Math.Abs(cmd.X) > 0.1f || Math.Abs(cmd.Y) > 0.1f)
+        {
+            var gridUid = FindPrimaryStationGrid();
+            if (gridUid != EntityUid.Invalid)
+            {
+                _xform.SetCoordinates(entity, new EntityCoordinates(gridUid, new Vector2(cmd.X, cmd.Y)));
+            }
+        }
+
         var aiComp = EnsureComp<AiAgentComponent>(entity);
         aiComp.AgentId = string.IsNullOrWhiteSpace(cmd.AgentId) ? $"agent-{(int)entity}" : cmd.AgentId;
         aiComp.CharacterName = charName;
@@ -482,10 +500,14 @@ public sealed class AiStationBridgeSystem : EntitySystem
     private void RebuildStateSnapshot()
     {
         var agents = new List<object>();
+        var agentCoords = new List<Vector2>();
         var agentQuery = EntityQueryEnumerator<AiAgentComponent, TransformComponent>();
         while (agentQuery.MoveNext(out var uid, out var ai, out var xform))
         {
+            RemComp<SSDIndicatorComponent>(uid);
+            EnsureComp<ActiveNPCComponent>(uid);
             var pos = xform.Coordinates;
+            agentCoords.Add(new Vector2(pos.X, pos.Y));
             var totalDmg = _damageable.GetTotalDamage(uid).Float();
             var mobStateStr = "Alive";
             if (_mobState.IsDead(uid))
@@ -544,12 +566,25 @@ public sealed class AiStationBridgeSystem : EntitySystem
         var doorQuery = EntityQueryEnumerator<DoorComponent, TransformComponent>();
         while (doorQuery.MoveNext(out var uid, out var door, out var xform))
         {
+            var dx = xform.Coordinates.X;
+            var dy = xform.Coordinates.Y;
+            if (door.State == DoorState.Closed)
+            {
+                for (var i = 0; i < agentCoords.Count; i++)
+                {
+                    if (Vector2.DistanceSquared(agentCoords[i], new Vector2(dx, dy)) <= 3.2f)
+                    {
+                        _door.TryOpen(uid, door);
+                        break;
+                    }
+                }
+            }
             doors.Add(new
             {
                 uid = (int)uid,
                 open = door.State == DoorState.Open || door.State == DoorState.Opening,
-                x = Math.Round(xform.Coordinates.X, 2),
-                y = Math.Round(xform.Coordinates.Y, 2)
+                x = Math.Round(dx, 2),
+                y = Math.Round(dy, 2)
             });
         }
 

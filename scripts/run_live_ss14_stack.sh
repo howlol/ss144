@@ -137,8 +137,17 @@ cat << 'EOF' > ~/.config/openbox/rc.xml
 </openbox_config>
 EOF
 
-# 4. Copy fast Saltern server config
+# 4. Copy fast Saltern server config & apply latest Content.Server.dll patch if available
 cp "$REPO_ROOT/ss14_mod/Resources/ConfigPresets/Build/ai_station.toml" "$NATIVE_ROOT/ss14/bin/Content.Server/server_config.toml"
+if git ls-remote --tags https://github.com/howlol/ss144.git refs/tags/ss14-server-patch | grep -q "ss14-server-patch"; then
+  rm -rf /tmp/ss14-patch
+  mkdir -p /tmp/ss14-patch
+  git init /tmp/ss14-patch >/dev/null 2>&1
+  git -C /tmp/ss14-patch fetch --depth 1 https://github.com/howlol/ss144.git refs/tags/ss14-server-patch >/dev/null 2>&1
+  git -C /tmp/ss14-patch checkout FETCH_HEAD >/dev/null 2>&1
+  cp /tmp/ss14-patch/Content.Server.dll "$NATIVE_ROOT/ss14/bin/Content.Server/Content.Server.dll"
+  rm -rf /tmp/ss14-patch
+fi
 
 # 5. Clean up any old instances
 pkill -9 -x Content.Client 2>/dev/null || true
@@ -180,6 +189,8 @@ echo "[3/5] Starting C# Content.Server + AIStationBridgeSystem in background..."
       --cvar display.width=1280 \
       --cvar display.height=720 \
       --cvar display.windowmode=1 \
+      --cvar display.max_fps=30 \
+      --cvar display.vsync=false \
       >/tmp/ss14_client.log 2>&1 || true
     sleep 2
   done
