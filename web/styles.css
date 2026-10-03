@@ -545,6 +545,35 @@ body {
   background: rgba(56, 189, 248, 0.2);
 }
 
+/* Station Radar / Minimap */
+.minimap-box {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(9, 14, 26, 0.92);
+  border: 1px solid #2b4269;
+  border-radius: 7px;
+  padding: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
+  z-index: 12;
+  cursor: pointer;
+}
+
+.minimap-header {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--accent);
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+
+#minimapCanvas {
+  display: block;
+  border-radius: 4px;
+  background: #04070f;
+}
+
 /* Interactive Station Machine BUI Window */
 .ss14-bui-window {
   position: absolute;

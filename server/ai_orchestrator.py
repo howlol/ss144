@@ -44,6 +44,9 @@ SYSTEM_PROMPT_RU = """Ты — живой человек, член экипаж�
   "emote": "Невербальное действие от третьего лица (например: \"поправляет фуражку и хмурится\", или \"\")",
   "move_to_room": "Название отсека из списка available_station_rooms, куда ты хочешь пойти (или \"\", если остаёшься на месте)",
   "interact_uid": null,
+  "pickup_item_uid": null,
+  "use_hand": false,
+  "target_agent_id": "",
   "memory_note": "Краткая запись в долговременную память о важном событии (или \"\")"
 }
 """
@@ -159,7 +162,9 @@ class AIStationOrchestrator:
     def build_agent_prompt_payload(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
         """Returns the exact OpenAI messages payload for the specified (or next scheduled) AI agent."""
         self._last_browser_llm_ping = time.time()
-        agent = self.runtime.agents.get(agent_id) if agent_id else self.pick_next_agent_for_llm()
+        agent = self.runtime.agents.get(agent_id) if agent_id else None
+        if not agent or agent.is_ghost:
+            agent = self.pick_next_agent_for_llm()
         if not agent:
             return {"ok": False, "error": "Нет доступных ИИ-персонажей"}
 
@@ -443,6 +448,26 @@ class AIStationOrchestrator:
         if interact_uid is not None:
             try:
                 self.runtime.interact_with_object(agent.id, int(interact_uid))
+            except Exception:
+                pass
+
+        pickup_uid = decision.get("pickup_item_uid")
+        if pickup_uid is not None:
+            try:
+                self.runtime.pickup_floor_item(agent.id, int(pickup_uid))
+            except Exception:
+                pass
+
+        if decision.get("use_hand") is True:
+            try:
+                self.runtime.use_item_in_hand(agent.id)
+            except Exception:
+                pass
+
+        target_agent_id = str(decision.get("target_agent_id") or "").strip()
+        if target_agent_id and target_agent_id in self.runtime.agents and target_agent_id != agent.id:
+            try:
+                self.runtime.attack_or_interact_target_agent(agent.id, target_agent_id)
             except Exception:
                 pass
 

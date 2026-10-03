@@ -41,9 +41,14 @@ const state = {
   camX: 3.5,
   camY: 28.5,
   zoom: 1.35,
+  soundEnabled: true,
+  minimapEnabled: true,
   showNames: true,
   showPaths: true,
   crtEnabled: false,
+  seenEffectIds: new Set(),
+  minimapBaseCanvas: null,
+  audioCtx: null,
 
   // Active player/selected character
   selectedAgentId: "captain-vance",
@@ -182,6 +187,143 @@ function buildSpatialIndex() {
     }
     state.spatial.objects.get(key).push(obj);
   }
+  buildMinimapBase();
+}
+
+// ============================================================================
+// Procedural SS14 Sound Effects (Web Audio API) & Minimap Radar
+// ============================================================================
+
+function playSs14Sound(type) {
+  if (!state.soundEnabled) return;
+  try {
+    if (!state.audioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      state.audioCtx = new AudioCtx();
+    }
+    const ctx = state.audioCtx;
+    if (ctx.state === "suspended") ctx.resume();
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === "honk") {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(510, now);
+      osc.frequency.setValueAtTime(680, now + 0.11);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.start(now);
+      osc.stop(now + 0.29);
+    } else if (type === "beam") {
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(920, now);
+      osc.frequency.exponentialRampToValueAtTime(160, now + 0.18);
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } else if (type === "slash" || type === "explosion") {
+      osc.type = "square";
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(48, now + 0.14);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    } else if (type === "heal") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(659.25, now + 0.08);
+      osc.frequency.setValueAtTime(783.99, now + 0.16);
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.start(now);
+      osc.stop(now + 0.29);
+    } else if (type === "boo") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(340, now);
+      osc.frequency.linearRampToValueAtTime(210, now + 0.35);
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+      osc.start(now);
+      osc.stop(now + 0.37);
+    } else if (type === "radio") {
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1350, now);
+      gain.gain.setValueAtTime(0.03, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    }
+  } catch (_e) {
+    // Ignore audio context autoplay restrictions until user clicks
+  }
+}
+
+function buildMinimapBase() {
+  if (!state.map) return;
+  const off = document.createElement("canvas");
+  off.width = 190;
+  off.height = 125;
+  const ctx = off.getContext("2d");
+  ctx.fillStyle = "#04070f";
+  ctx.fillRect(0, 0, off.width, off.height);
+
+  const b = state.map.bounds || { minX: -55, maxX: 82, minY: -48, maxY: 38 };
+  const spanX = Math.max(1, b.maxX - b.minX + 6);
+  const spanY = Math.max(1, b.maxY - b.minY + 6);
+
+  ctx.fillStyle = "#1e293b";
+  for (const [tx, ty] of state.map.tiles) {
+    const mx = ((tx - b.minX + 3) / spanX) * off.width;
+    const my = ((b.maxY - ty + 3) / spanY) * off.height;
+    ctx.fillRect(mx, my, 1.6, 1.6);
+  }
+
+  ctx.fillStyle = "#475569";
+  for (const w of state.map.walls) {
+    const mx = ((w.x - b.minX + 3) / spanX) * off.width;
+    const my = ((b.maxY - w.y + 3) / spanY) * off.height;
+    ctx.fillRect(mx, my, 1.6, 1.6);
+  }
+
+  state.minimapBaseCanvas = off;
+}
+
+function renderMinimap() {
+  if (!state.minimapEnabled || !state.map || !state.minimapBaseCanvas) return;
+  const canvas = document.getElementById("minimapCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(state.minimapBaseCanvas, 0, 0);
+
+  const b = state.map.bounds || { minX: -55, maxX: 82, minY: -48, maxY: 38 };
+  const spanX = Math.max(1, b.maxX - b.minX + 6);
+  const spanY = Math.max(1, b.maxY - b.minY + 6);
+
+  if (state.live?.agents) {
+    for (const ag of state.live.agents) {
+      const rpos = state.renderPos.get(ag.id) || ag;
+      const mx = ((rpos.x - b.minX + 3) / spanX) * canvas.width;
+      const my = ((b.maxY - rpos.y + 3) / spanY) * canvas.height;
+      ctx.fillStyle = ag.id === state.selectedAgentId ? "#ffffff" : (ag.color || "#38bdf8");
+      ctx.beginPath();
+      ctx.arc(mx, my, ag.id === state.selectedAgentId ? 3.2 : 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Camera center reticle
+  const cx = ((state.camX - b.minX + 3) / spanX) * canvas.width;
+  const cy = ((b.maxY - state.camY + 3) / spanY) * canvas.height;
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 12, cy - 8, 24, 16);
 }
 
 // ============================================================================
@@ -240,12 +382,12 @@ async function initApp() {
 function connectWebSocket() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${proto}//${location.host}/ws`);
+  state.ws = ws;
 
   ws.onmessage = (event) => {
     try {
       const payload = JSON.parse(event.data);
       if (payload.type === "state") {
-        // Keep walls synced if RCD modified them
         state.live = payload.state;
         state.llm = payload.llm;
         state.apiLogs = payload.apiLogs || [];
@@ -262,6 +404,7 @@ function connectWebSocket() {
   };
 
   ws.onclose = () => {
+    state.ws = null;
     setTimeout(connectWebSocket, 2000);
   };
 }
@@ -274,6 +417,20 @@ function getActiveApiKey() {
   return (state.browserLlm.apiKey || "").trim();
 }
 
+function normalizeOpenAiEndpoint(rawUrl) {
+  let u = (rawUrl || "https://api.openai.com/v1").trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(u)) {
+    u = "https://" + u;
+  }
+  if (u.endsWith("/chat/completions")) {
+    return u;
+  }
+  if (/\/v\d+$/i.test(u) || /\/openai$/i.test(u)) {
+    return `${u}/chat/completions`;
+  }
+  return `${u}/v1/chat/completions`;
+}
+
 function startBrowserDirectLlmLoop() {
   setInterval(() => {
     const key = getActiveApiKey();
@@ -281,7 +438,7 @@ function startBrowserDirectLlmLoop() {
     const now = performance.now();
     const waitMs = Math.max(1200, (state.browserLlm.intervalSec || 2.5) * 1000);
     if (now - state.browserLlm.lastCallTime >= waitMs) {
-      runBrowserDirectLlmStep( null );
+      runBrowserDirectLlmStep(null);
     }
   }, 600);
 }
@@ -310,8 +467,7 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
       return promptData;
     }
 
-    const baseUrl = (state.browserLlm.baseUrl || "https://api.openai.com/v1").trim().replace(/\/+$/, "");
-    const endpoint = baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`;
+    const endpoint = normalizeOpenAiEndpoint(state.browserLlm.baseUrl);
     const model = (state.browserLlm.model || "gpt-4o-mini").trim();
 
     if (statusEl) {
@@ -319,7 +475,7 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
     }
 
     const t0 = performance.now();
-    const llmRes = await fetch(endpoint, {
+    let llmRes = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -328,10 +484,25 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
       body: JSON.stringify({
         model,
         messages: promptData.messages,
-        temperature: 0.85,
+        temperature: 0.8,
         max_tokens: 320,
       }),
     });
+
+    // Fallback for reasoning models (o1/o3/gpt-5/deepseek-reasoner) that reject max_tokens or temperature
+    if (llmRes.status === 400) {
+      llmRes = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: promptData.messages,
+        }),
+      });
+    }
 
     const latencyMs = Math.round(performance.now() - t0);
 
@@ -425,6 +596,7 @@ function renderLoop(now) {
     renderQuadViewports();
   } else {
     renderMainViewport();
+    renderMinimap();
   }
 
   requestAnimationFrame(renderLoop);
@@ -432,9 +604,22 @@ function renderLoop(now) {
 
 function interpolateAgents() {
   if (!state.live || !state.live.agents) return;
+  const now = performance.now();
+  const userMovingActive = (now - (state.lastUserMoveInputTime || 0)) < 450;
+
   for (const ag of state.live.agents) {
     const cur = state.renderPos.get(ag.id);
-    if (!cur || Math.hypot(ag.x - cur.x, ag.y - cur.y) > 6.0) {
+    if (!cur) {
+      state.renderPos.set(ag.id, { x: ag.x, y: ag.y });
+      continue;
+    }
+    if (ag.id === state.selectedAgentId && userMovingActive) {
+      // Keep client-side predicted position authoritative while user holds WASD!
+      ag.x = cur.x;
+      ag.y = cur.y;
+      continue;
+    }
+    if (Math.hypot(ag.x - cur.x, ag.y - cur.y) > 6.0) {
       state.renderPos.set(ag.id, { x: ag.x, y: ag.y });
     } else {
       cur.x += (ag.x - cur.x) * 0.28;
@@ -446,8 +631,8 @@ function interpolateAgents() {
   if (state.viewMode === "follow" && state.selectedAgentId) {
     const rpos = state.renderPos.get(state.selectedAgentId);
     if (rpos) {
-      state.camX += (rpos.x - state.camX) * 0.22;
-      state.camY += (rpos.y - state.camY) * 0.22;
+      state.camX += (rpos.x - state.camX) * 0.35;
+      state.camY += (rpos.y - state.camY) * 0.35;
     }
   }
 }
@@ -648,6 +833,10 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
   // 6. Visual Effects (Laser Beams, Stun Slash, Healing Aura, HONK, Ghost Boo)
   if (state.live?.effects) {
     for (const ef of state.live.effects) {
+      if (!state.seenEffectIds.has(ef.id)) {
+        state.seenEffectIds.add(ef.id);
+        playSs14Sound(ef.type);
+      }
       const [sx1, sy1] = worldToScreen(ef.x1, ef.y1, width, height, centerCamX, centerCamY, zoom);
       const [sx2, sy2] = worldToScreen(ef.x2, ef.y2, width, height, centerCamX, centerCamY, zoom);
       ctx.save();
@@ -992,6 +1181,9 @@ function renderChatFeed(force = false) {
   if (!feed || !state.live?.chat) return;
   const lastId = state.live.chat.length ? state.live.chat[state.live.chat.length - 1].id : 0;
   if (!force && state.domHashes.chat === lastId) return;
+  if (!force && state.domHashes.chat > 0 && lastId > state.domHashes.chat) {
+    playSs14Sound("radio");
+  }
   state.domHashes.chat = lastId;
 
   const wasAtBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
@@ -1136,6 +1328,15 @@ function populateBeaconsAndRooms(filterText = "") {
   }
 
   if (ghostWarp && ghostWarp.options.length <= 1) {
+    if (state.live?.agents) {
+      for (const ag of state.live.agents) {
+        if (ag.isGhost) continue;
+        const opt = document.createElement("option");
+        opt.value = `agent:${ag.id}`;
+        opt.textContent = `👤 Экипаж: ${ag.name} (${ag.jobTitleRu})`;
+        ghostWarp.appendChild(opt);
+      }
+    }
     for (const b of state.map.beacons) {
       const opt = document.createElement("option");
       opt.value = `room:${b.name}`;
@@ -1432,8 +1633,18 @@ async function setGameMode(mode) {
 // Keyboard & Mouse Gameplay Controls
 // ============================================================================
 
+function isClientTilePassable(tx, ty, isGhost) {
+  if (isGhost) return true;
+  const key = `${tx},${ty}`;
+  if (!state.spatial.tiles.has(key)) return false;
+  if (state.spatial.walls.has(key) || state.spatial.windows.has(key)) return false;
+  return true;
+}
+
 function handleContinuousWasd(now) {
-  if (now - state.lastWasdTime < 95) return;
+  const dt = Math.min(0.05, (now - (state.lastFrameMoveTime || now)) / 1000);
+  state.lastFrameMoveTime = now;
+
   let dx = 0;
   let dy = 0;
   if (state.keysDown.has("KeyW") || state.keysDown.has("ArrowUp")) dy += 1;
@@ -1442,21 +1653,65 @@ function handleContinuousWasd(now) {
   if (state.keysDown.has("KeyA") || state.keysDown.has("ArrowLeft")) dx -= 1;
 
   if (dx === 0 && dy === 0) return;
-  state.lastWasdTime = now;
 
-  if (state.selectedAgentId) {
-    // Immediate client-side prediction for snappy 60 FPS feel
-    const rpos = state.renderPos.get(state.selectedAgentId);
-    if (rpos) {
-      rpos.x += dx * 0.45;
-      rpos.y += dy * 0.45;
+  const ag = state.live?.agents?.find((a) => a.id === state.selectedAgentId);
+  if (!ag) return;
+  if (!ag.isGhost && (ag.status === "Dead" || ag.stunned)) return;
+
+  state.lastUserMoveInputTime = now;
+  const len = Math.hypot(dx, dy) || 1;
+  const ndx = dx / len;
+  const ndy = dy / len;
+  const speed = ag.isGhost ? 9.5 : 5.8;
+
+  let rpos = state.renderPos.get(ag.id);
+  if (!rpos) {
+    rpos = { x: ag.x, y: ag.y };
+    state.renderPos.set(ag.id, rpos);
+  }
+
+  const nx = rpos.x + ndx * speed * dt;
+  const ny = rpos.y + ndy * speed * dt;
+
+  if (isClientTilePassable(Math.floor(nx), Math.floor(ny), ag.isGhost)) {
+    rpos.x = nx;
+    rpos.y = ny;
+  } else if (isClientTilePassable(Math.floor(nx), Math.floor(rpos.y), ag.isGhost)) {
+    rpos.x = nx;
+  } else if (isClientTilePassable(Math.floor(rpos.x), Math.floor(ny), ag.isGhost)) {
+    rpos.y = ny;
+  }
+
+  ag.x = rpos.x;
+  ag.y = rpos.y;
+  ag.path = [];
+  if (Math.abs(dx) > Math.abs(dy)) {
+    ag.direction = dx > 0 ? "east" : "west";
+  } else if (Math.abs(dy) > 0) {
+    ag.direction = dy > 0 ? "north" : "south";
+  }
+
+  // Sync over WebSocket at ~12 Hz (zero HTTP request spam!)
+  if (now - state.lastWasdTime >= 75) {
+    state.lastWasdTime = now;
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+      state.ws.send(
+        JSON.stringify({
+          type: "player_move",
+          agentId: ag.id,
+          x: Number(rpos.x.toFixed(2)),
+          y: Number(rpos.y.toFixed(2)),
+          direction: ag.direction,
+        })
+      );
+    } else {
+      sendAgentCommand({
+        agentId: ag.id,
+        action: "step_dir",
+        dx,
+        dy,
+      });
     }
-    sendAgentCommand({
-      agentId: state.selectedAgentId,
-      action: "step_dir",
-      dx,
-      dy,
-    });
   }
 }
 
@@ -1478,11 +1733,17 @@ function bindUIEvents() {
     if (!val) return;
     if (val.startsWith("room:")) {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "ghost_warp", room: val.slice(5) });
+    } else if (val.startsWith("agent:")) {
+      sendAgentCommand({ agentId: state.selectedAgentId, action: "ghost_warp", targetAgentId: val.slice(6) });
     }
     e.target.value = "";
   };
 
   // Bottom SS14 Player HUD Controls
+  document.getElementById("hudInteractNearBtn").onclick = async () => {
+    const res = await sendAgentCommand({ agentId: state.selectedAgentId, action: "interact_nearest" });
+    if (res.bui) openBuiWindow(res.bui);
+  };
   document.getElementById("hudLeftHand").onclick = () => {
     const ag = state.live?.agents?.find((a) => a.id === state.selectedAgentId);
     if (ag && ag.activeHand !== "left") {
@@ -1541,6 +1802,34 @@ function bindUIEvents() {
   // Zoom & HUD Toggles
   document.getElementById("zoomInBtn").onclick = () => setZoom(state.zoom * 1.25);
   document.getElementById("zoomOutBtn").onclick = () => setZoom(state.zoom / 1.25);
+  document.getElementById("toggleSoundBtn").onclick = (e) => {
+    state.soundEnabled = !state.soundEnabled;
+    e.currentTarget.classList.toggle("active", state.soundEnabled);
+    if (state.soundEnabled) playSs14Sound("radio");
+  };
+  document.getElementById("toggleMinimapBtn").onclick = (e) => {
+    state.minimapEnabled = !state.minimapEnabled;
+    e.currentTarget.classList.toggle("active", state.minimapEnabled);
+    document.getElementById("minimapBox").classList.toggle("hidden", !state.minimapEnabled);
+  };
+  document.getElementById("minimapCanvas").onclick = (e) => {
+    if (!state.map) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const rx = (e.clientX - rect.left) / rect.width;
+    const ry = (e.clientY - rect.top) / rect.height;
+    const b = state.map.bounds || { minX: -55, maxX: 82, minY: -48, maxY: 38 };
+    const spanX = Math.max(1, b.maxX - b.minX + 6);
+    const spanY = Math.max(1, b.maxY - b.minY + 6);
+    const wx = rx * spanX + b.minX - 3;
+    const wy = b.maxY + 3 - ry * spanY;
+    if (state.gameMode === "play" || state.gameMode === "ghost") {
+      sendAgentCommand({ agentId: state.selectedAgentId, action: "move_to", x: wx, y: wy });
+    } else {
+      state.viewMode = "free";
+      state.camX = wx;
+      state.camY = wy;
+    }
+  };
   document.getElementById("toggleNamesBtn").onclick = (e) => {
     state.showNames = !state.showNames;
     e.currentTarget.classList.toggle("active", state.showNames);
@@ -1624,14 +1913,14 @@ function bindUIEvents() {
     { passive: false }
   );
 
-  // Keyboard shortcuts (WASD + SS14 Hotkeys X, Z, Q, C)
-  window.addEventListener("keydown", (e) => {
+  // Keyboard shortcuts (WASD + SS14 Hotkeys X, Z, Q, C, E, T, Y, G, M)
+  window.addEventListener("keydown", async (e) => {
     if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
     state.keysDown.add(e.code);
 
     if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       state.viewMode = "follow";
-    } else if (e.code === "KeyX") {
+    } else if (e.code === "KeyX" || e.code === "Digit1" || e.code === "Digit2") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "swap_hands" });
     } else if (e.code === "KeyZ") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "use_hand" });
@@ -1639,6 +1928,21 @@ function bindUIEvents() {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "drop_item" });
     } else if (e.code === "KeyC") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_combat" });
+    } else if (e.code === "KeyE") {
+      const res = await sendAgentCommand({ agentId: state.selectedAgentId, action: "interact_nearest" });
+      if (res.bui) openBuiWindow(res.bui);
+    } else if (e.code === "KeyG") {
+      setGameMode(state.gameMode === "ghost" ? "play" : "ghost");
+    } else if (e.code === "KeyM") {
+      document.getElementById("toggleMinimapBtn").click();
+    } else if (e.code === "KeyT") {
+      e.preventDefault();
+      document.getElementById("directSayInput").focus();
+    } else if (e.code === "KeyY") {
+      e.preventDefault();
+      const inp = document.getElementById("directSayInput");
+      if (!inp.value.startsWith(";")) inp.value = ";" + inp.value;
+      inp.focus();
     }
   });
 

@@ -109,6 +109,8 @@
           <button id="zoomOutBtn" class="hud-btn" title="Отдалить">➖</button>
           <span id="zoomLabel" class="zoom-label">100%</span>
           <button id="zoomInBtn" class="hud-btn" title="Приблизить">➕</button>
+          <button id="toggleSoundBtn" class="hud-btn active" title="Процедурные звуковые эффекты SS14 (лазеры, шлюзы, клаксон, рация)">🔊 Звук</button>
+          <button id="toggleMinimapBtn" class="hud-btn active" title="Показать/скрыть радар станции (клавиша M)">🗺️ Радар</button>
           <button id="toggleNamesBtn" class="hud-btn active" title="Имена и мысли над головой">🏷️ Имена</button>
           <button id="togglePathsBtn" class="hud-btn active" title="Маршруты ИИ">📍 Пути</button>
           <button id="toggleCrtBtn" class="hud-btn" title="Эффект ЭЛТ-монитора">📺 CRT</button>
@@ -140,6 +142,12 @@
 
         <!-- Context Menu (Right-Click SS14 Verb Menu) -->
         <div id="contextMenu" class="ss14-context-menu hidden"></div>
+
+        <!-- Station Radar / Minimap -->
+        <div id="minimapBox" class="minimap-box" title="Кликните на любую точку радара для перемещения">
+          <div class="minimap-header">РАДАР СТАНЦИИ NSS SALTERN</div>
+          <canvas id="minimapCanvas" width="190" height="125"></canvas>
+        </div>
 
         <!-- Interactive BUI Machine Window (Vending, Cargo, Comms, Uplink, MedScanner) -->
         <div id="buiWindow" class="ss14-bui-window hidden">
@@ -228,8 +236,11 @@
           <div id="hudInventoryBar" class="hud-inv-slots"></div>
         </div>
 
-        <!-- Combat Mode, Syndicate Uplink & Quick Say -->
+        <!-- Combat Mode, Interact & Syndicate Uplink -->
         <div class="hud-actions-section">
+          <button id="hudInteractNearBtn" class="hud-uplink-btn" style="border-color:#38bdf8;color:#7dd3fc;background:rgba(56,189,248,0.14)" title="Взаимодействовать с ближайшим объектом / шлюзом / поднять предмет с пола (клавиша E)">
+            🖐️ Действие [E]
+          </button>
           <button id="hudCombatBtn" class="hud-combat-btn" title="Переключить Боевой режим (клавиша C): МИР (лечение/осмотр) / БОЙ (стрельба/удары)">
             🛡️ МИР [C]
           </button>

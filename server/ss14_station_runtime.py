@@ -1561,6 +1561,18 @@ class SS14StationRuntime:
         nearby_doors.sort(key=lambda d: d["distance"])
         nearby_doors = nearby_doors[:5]
 
+        nearby_floor_items = []
+        for fitem in self.floor_items.values():
+            dist = math.hypot(fitem.x - agent.x, fitem.y - agent.y)
+            if dist <= 6.0:
+                nearby_floor_items.append({
+                    "uid": fitem.uid,
+                    "name": fitem.name,
+                    "item_id": fitem.item_id,
+                    "distance": round(dist, 1),
+                })
+        nearby_floor_items.sort(key=lambda f: f["distance"])
+
         audible_chat = []
         for ch in self.chat_log[-25:]:
             if ch.channel in ("Common", "CentComm") or ch.channel.lower() == agent.department.lower():
@@ -1607,9 +1619,53 @@ class SS14StationRuntime:
             "nearby_crew": nearby_crew,
             "nearby_objects": nearby_objects,
             "nearby_doors": nearby_doors,
+            "nearby_floor_items": nearby_floor_items[:6],
             "recent_heard_chat": audible_chat[-8:],
             "available_station_rooms": [b["name"] for b in self.beacons[:32]],
         }
+
+    def interact_nearest(self, agent_id: str) -> Dict[str, Any]:
+        """Interacts with the closest floor item, door, or station machine within 2.2 tiles (hotkey [E])."""
+        agent = self.agents.get(agent_id)
+        if not agent:
+            return {"ok": False, "message": "Персонаж не найден"}
+
+        # 1. Nearest floor item within 1.8 tiles
+        best_fi = None
+        best_fi_dist = 1.8
+        for fi in self.floor_items.values():
+            d = math.hypot(fi.x - agent.x, fi.y - agent.y)
+            if d < best_fi_dist:
+                best_fi_dist = d
+                best_fi = fi
+        if best_fi and not agent.is_ghost:
+            self.pickup_floor_item(agent_id, best_fi.uid)
+            return {"ok": True, "message": agent.current_task}
+
+        # 2. Nearest door within 1.8 tiles
+        best_door = None
+        best_door_dist = 1.8
+        for door in self.doors_by_uid.values():
+            d = math.hypot(door["x"] - agent.x, door["y"] - agent.y)
+            if d < best_door_dist:
+                best_door_dist = d
+                best_door = door
+        if best_door:
+            toggled = self.toggle_door(int(best_door["uid"]), agent_id)
+            return {"ok": True, "door": toggled, "message": f"Переключил шлюз {best_door['name']}"}
+
+        # 3. Nearest station object within 2.2 tiles
+        best_obj = None
+        best_obj_dist = 2.2
+        for obj in self.objects:
+            d = math.hypot(obj["x"] - agent.x, obj["y"] - agent.y)
+            if d < best_obj_dist:
+                best_obj_dist = d
+                best_obj = obj
+        if best_obj:
+            return self.interact_with_object(agent_id, int(best_obj["uid"]))
+
+        return {"ok": False, "message": "Рядом нет объектов для взаимодействия"}
 
     def get_live_state_delta(self) -> Dict[str, Any]:
         now = time.time()

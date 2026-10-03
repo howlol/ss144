@@ -220,6 +220,7 @@ async def apply_agent_decision(payload: Dict[str, Any]):
 async def report_llm_error(payload: Dict[str, Any]):
     agent_id = str(payload.get("agentId") or "")
     error_msg = str(payload.get("error") or "Unknown error")
+    print(f"[Browser-LLM Error] agent={agent_id} error={error_msg}", flush=True)
     orchestrator.record_external_llm_error(agent_id, error_msg, "browser-direct")
     return {"ok": True, "llm": orchestrator.get_public_config(), "apiLogs": orchestrator.api_logs[-15:]}
 
@@ -401,6 +402,11 @@ async def command_agent(payload: Dict[str, Any]):
         extra.update(res)
         bui_info = res.get("bui")
 
+    elif action == "interact_nearest":
+        res = runtime.interact_nearest(agent_id)
+        extra.update(res)
+        bui_info = res.get("bui")
+
     elif action == "toggle_browser_control":
         agent.browser_controlled = bool(payload.get("enabled", not agent.browser_controlled))
 
@@ -556,8 +562,29 @@ async def websocket_endpoint(ws: WebSocket):
         })
         while True:
             msg = await ws.receive_json()
-            if msg.get("type") == "ping":
+            mtype = msg.get("type")
+            if mtype == "ping":
                 await ws.send_json({"type": "pong"})
+            elif mtype == "player_move":
+                aid = str(msg.get("agentId") or "")
+                ag = runtime.agents.get(aid)
+                if ag:
+                    nx = float(msg.get("x", ag.x))
+                    ny = float(msg.get("y", ag.y))
+                    direction = str(msg.get("direction") or ag.direction)
+                    ag.path.clear()
+                    tx, ty = int(nx // 1), int(ny // 1)
+                    if runtime._is_tile_passable(tx, ty, ag.access, is_ghost=ag.is_ghost):
+                        if not ag.is_ghost:
+                            door = runtime.doors_by_tile.get((tx, ty))
+                            if door and not door.get("open") and not door.get("bolted"):
+                                door["open"] = True
+                                runtime.door_close_timers[int(door["uid"])] = time.time() + 3.5
+                        ag.x = nx
+                        ag.y = ny
+                        ag.direction = direction
+                        ag.current_room = runtime.nearest_room_name(ag.x, ag.y)
+                        runtime._check_tile_hazards(ag)
     except WebSocketDisconnect:
         connected_clients.discard(ws)
     except Exception:

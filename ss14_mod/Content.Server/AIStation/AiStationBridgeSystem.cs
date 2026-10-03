@@ -16,6 +16,7 @@ using Content.Server.NPC.Systems;
 using Content.Server.Roles;
 using Content.Server.Station.Components;
 using Content.Shared.Chat;
+using Content.Shared.CombatMode;
 using Content.Shared.Damage.Components;
 using Content.Shared.Damage.Systems;
 using Content.Shared.Doors.Components;
@@ -38,14 +39,15 @@ namespace Content.Server.AIStation;
 
 /// <summary>
 /// Embedded HTTP/JSON bridge inside Space Station 14's Content.Server.
-/// Exposes real-time station telemetry, surveillance camera feeds, and AI character control endpoints
-/// on http://127.0.0.1:12120/ so the OpenAI Agent Orchestrator & Web Control Dashboard drive real SS14 entities.
+/// Exposes real-time station telemetry, surveillance camera feeds, playable crew & ghost controls,
+/// and AI character endpoints on http://127.0.0.1:12120/.
 /// </summary>
 public sealed class AiStationBridgeSystem : EntitySystem
 {
     [Dependency] private readonly IGameTiming _timing = default!;
     [Dependency] private readonly IPrototypeManager _protoMan = default!;
     [Dependency] private readonly ChatSystem _chat = default!;
+    [Dependency] private readonly SharedCombatModeSystem _combatMode = default!;
     [Dependency] private readonly DoorSystem _door = default!;
     [Dependency] private readonly HandsSystem _hands = default!;
     [Dependency] private readonly SharedInteractionSystem _interaction = default!;
@@ -64,7 +66,7 @@ public sealed class AiStationBridgeSystem : EntitySystem
     private readonly ConcurrentQueue<ChatRecord> _chatHistory = new();
     private string _cachedStateJson = "{}";
     private float _snapshotAccumulator;
-    private const float SnapshotInterval = 0.25f;
+    private const float SnapshotInterval = 0.2f;
 
     public override void Initialize()
     {
@@ -232,7 +234,6 @@ public sealed class AiStationBridgeSystem : EntitySystem
     {
         base.Update(frameTime);
 
-        // Process queued commands from OpenAI Orchestrator / Web Browser
         while (_commandQueue.TryDequeue(out var cmd))
         {
             try
@@ -259,6 +260,10 @@ public sealed class AiStationBridgeSystem : EntitySystem
         {
             case "spawn_agent":
                 SpawnAiAgent(cmd);
+                break;
+
+            case "spawn_ghost":
+                SpawnGhostObserver(cmd);
                 break;
 
             case "move_to":
@@ -302,6 +307,20 @@ public sealed class AiStationBridgeSystem : EntitySystem
                 if (TryFindAgentEntity(cmd.AgentId, out var emoteUid, out _) && !string.IsNullOrWhiteSpace(cmd.Text))
                 {
                     _chat.TrySendInGameICMessage(emoteUid, cmd.Text, InGameICChatType.Emote, false, ignoreActionBlocker: true);
+                }
+                break;
+
+            case "toggle_combat":
+                if (TryFindAgentEntity(cmd.AgentId, out var combatUid, out _) && TryComp<CombatModeComponent>(combatUid, out var combatComp))
+                {
+                    _combatMode.SetInCombatMode(combatUid, !combatComp.IsInCombatMode, combatComp);
+                }
+                break;
+
+            case "use_hand":
+                if (TryFindAgentEntity(cmd.AgentId, out var useUid, out _))
+                {
+                    _interaction.UseInHandInteraction(useUid);
                 }
                 break;
 
@@ -357,11 +376,28 @@ public sealed class AiStationBridgeSystem : EntitySystem
         }
     }
 
+    private void SpawnGhostObserver(BridgeCommand cmd)
+    {
+        var gridUid = FindPrimaryStationGrid();
+        if (gridUid == EntityUid.Invalid)
+            return;
+
+        var coords = new EntityCoordinates(gridUid, new Vector2(cmd.X, cmd.Y));
+        var ghostUid = Spawn("MobObserver", coords);
+        var aiComp = EnsureComp<AiAgentComponent>(ghostUid);
+        aiComp.AgentId = string.IsNullOrWhiteSpace(cmd.AgentId) ? $"ghost-{(int)ghostUid}" : cmd.AgentId;
+        aiComp.CharacterName = string.IsNullOrWhiteSpace(cmd.Name) ? "Ghost Observer" : cmd.Name;
+        aiComp.JobId = "Ghost";
+        aiComp.RoleTitle = "Ghost Observer";
+        aiComp.Department = "Observer";
+        aiComp.BrowserControlled = true;
+    }
+
     private void SpawnAiAgent(BridgeCommand cmd)
     {
         var station = FindPrimaryStation();
         var jobId = string.IsNullOrWhiteSpace(cmd.JobId) ? "Passenger" : cmd.JobId;
-        var charName = string.IsNullOrWhiteSpace(cmd.Name) ? $"AI-{ jobId }" : cmd.Name;
+        var charName = string.IsNullOrWhiteSpace(cmd.Name) ? $"AI-{jobId}" : cmd.Name;
 
         var profile = HumanoidCharacterProfile.RandomWithSpecies().WithName(charName);
         ProtoId<JobPrototype> jobProtoId = new(jobId);
@@ -374,7 +410,6 @@ public sealed class AiStationBridgeSystem : EntitySystem
 
         if (mob == null || !mob.Value.IsValid())
         {
-            // Fallback: spawn directly on station grid
             var gridUid = FindPrimaryStationGrid();
             if (gridUid == EntityUid.Invalid)
                 return;
