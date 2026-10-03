@@ -1,14 +1,19 @@
 /**
- * Space Station 14 — High-Performance 60 FPS Browser Gameplay, Ghost Mode & OpenAI Multi-Agent Client
- * Features:
- * - Viewport-culled O(visible_tiles) renderer with 60 FPS entity interpolation
- * - Direct Browser + Server OpenAI-Compatible API Execution (works with OpenAI, OpenRouter, DeepSeek, Groq & localhost Ollama)
- * - Full Playable SS14 Crew Mode (WASD, Left/Right Hands, Belt Inventory, Floor Items, Combat/Lasers/Stun, RCD, Door Hacking, BUI Consoles)
- * - Ghost Mode (MobObserver: fly through walls, Ghost Warp, Ghost Boo, Possess any crew member)
- * - 53 Surveillance Cameras + 4-Camera Quad Split-Screen
+ * Space Station 14 — Fullscreen Browser Game Client (NSS Saltern)
+ * Authentic Content.Client StyleNano UI + 60 FPS Viewport-Culled Engine + Direct Browser OpenAI API
  */
 
 const TILE_PX = 32;
+
+// Generate 180 parallax stars for deep space background
+const STARFIELD = Array.from({ length: 180 }, () => ({
+  x: Math.random() * 2400,
+  y: Math.random() * 1600,
+  size: Math.random() < 0.25 ? 2 : 1.2,
+  alpha: 0.3 + Math.random() * 0.7,
+  depth: 0.08 + Math.random() * 0.18,
+  color: Math.random() < 0.2 ? "#bae6fd" : (Math.random() < 0.15 ? "#fde68a" : "#f8fafc"),
+}));
 
 const state = {
   map: null,
@@ -17,43 +22,43 @@ const state = {
   live: null,
   llm: null,
   apiLogs: [],
+  floorItemsCache: [],
 
   // Spatial lookup maps built once at bootstrap for 60 FPS viewport culling
   spatial: {
-    tiles: new Map(),     // "tx,ty" -> [tname, variant]
-    walls: new Map(),     // "tx,ty" -> wallObj
-    windows: new Map(),   // "tx,ty" -> winObj
-    objects: new Map(),   // "tx,ty" -> [obj, ...]
+    tiles: new Map(),       // "tx,ty" -> [tname, variant]
+    walls: new Map(),       // "tx,ty" -> wallObj
+    windows: new Map(),     // "tx,ty" -> winObj
+    objects: new Map(),     // "tx,ty" -> [obj, ...]
+    lights: new Map(),      // "tx,ty" -> lightObj
     doorsByTile: new Map(), // "tx,ty" -> doorObj
+    floorByTile: new Map(), // "tx,ty" -> [floorItem, ...]
   },
 
   // Smooth 60 FPS interpolated positions per agent id
-  renderPos: new Map(), // agentId -> { x, y }
+  renderPos: new Map(), // agentId -> { x, y, moving }
 
-  // Gameplay & Viewport mode: "play" | "ghost" | "cctv"
+  // Gameplay mode: "play" | "ghost" | "cctv"
   gameMode: "play",
   previousPlayAgentId: "captain-vance",
 
   // Camera state
-  viewMode: "follow", // "follow" | "single" | "quad" | "free"
+  viewMode: "follow", // "follow" | "single" | "free"
   activeCameraId: null,
   quadCameraIds: ["Bridge", "Bar", "Medbay", "Security"],
   camX: 3.5,
   camY: 28.5,
-  zoom: 1.35,
+  zoom: 1.5,
   soundEnabled: true,
+  lightingEnabled: true,
   minimapEnabled: true,
   showNames: true,
-  showPaths: true,
-  crtEnabled: false,
-  seenEffectIds: new Set(),
-  minimapBaseCanvas: null,
-  audioCtx: null,
+  showPaths: false,
 
-  // Active player/selected character
   selectedAgentId: "captain-vance",
 
-  // Dragging & keyboard state
+  // Input & WebSocket state
+  ws: null,
   isDragging: false,
   dragMoved: false,
   dragStartX: 0,
@@ -62,11 +67,15 @@ const state = {
   camStartY: 0,
   keysDown: new Set(),
   lastWasdTime: 0,
+  lastFrameMoveTime: 0,
+  lastUserMoveInputTime: 0,
 
-  // Image cache
   imageCache: new Map(),
+  seenEffectIds: new Set(),
+  minimapBaseCanvas: null,
+  audioCtx: null,
 
-  // Browser-Direct OpenAI API settings (persisted in localStorage)
+  // Browser-Direct OpenAI API settings
   browserLlm: {
     apiKey: localStorage.getItem("ss14_openai_key") || "",
     baseUrl: localStorage.getItem("ss14_openai_url") || "https://api.openai.com/v1",
@@ -76,16 +85,15 @@ const state = {
     lastCallTime: 0,
   },
 
-  // Fingerprints to avoid unnecessary DOM rebuilds
   domHashes: {
     crew: "",
     chat: 0,
     apiLogs: 0,
     hud: "",
     inspector: "",
+    equip: "",
   },
 
-  // FPS counter
   fpsFrames: 0,
   fpsLastTime: performance.now(),
   currentFps: 60,
@@ -95,8 +103,10 @@ const state = {
 // Image Loader & Sprite Atlas Resolver
 // ============================================================================
 
-function getSpriteImage(url) {
-  if (!url) return null;
+function getSpriteImage(urlOrObj) {
+  if (!urlOrObj) return null;
+  const url = typeof urlOrObj === "string" ? urlOrObj : urlOrObj.url;
+  if (!url || typeof url !== "string") return null;
   if (state.imageCache.has(url)) {
     return state.imageCache.get(url);
   }
@@ -106,10 +116,32 @@ function getSpriteImage(url) {
   return img;
 }
 
-function drawFirstFrame(ctx, img, dx, dy, dw, dh) {
+function drawFirstFrame(ctx, img, dx, dy, dw, dh, rot = 0) {
   if (!img || !img.complete || img.naturalWidth === 0) return false;
   const nw = img.naturalWidth;
   const nh = img.naturalHeight;
+
+  if (Math.abs(rot) > 0.05) {
+    ctx.save();
+    ctx.translate(dx + dw / 2, dy + dh / 2);
+    // If 4-directional sheet, pick directional frame instead of rotating canvas
+    if (nw >= 128 && nh >= 32) {
+      let dirIdx = 0; // south
+      const norm = ((rot % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      if (Math.abs(norm - Math.PI) < 0.6) dirIdx = 1; // north
+      else if (Math.abs(norm - Math.PI / 2) < 0.6) dirIdx = 2; // east
+      else if (Math.abs(norm - (3 * Math.PI) / 2) < 0.6) dirIdx = 3; // west
+      ctx.drawImage(img, dirIdx * 32, 0, 32, 32, -dw / 2, -dh / 2, dw, dh);
+    } else {
+      ctx.rotate(-rot);
+      const frameW = nw >= 32 ? 32 : nw;
+      const frameH = nh >= 32 ? 32 : nh;
+      ctx.drawImage(img, 0, 0, frameW, frameH, -dw / 2, -dh / 2, dw, dh);
+    }
+    ctx.restore();
+    return true;
+  }
+
   if (nw > 32 || nh > 32) {
     const frameW = nw >= 32 ? 32 : nw;
     const frameH = nh >= 32 ? 32 : nh;
@@ -129,7 +161,7 @@ function drawDirectionalFrame(ctx, img, direction, dx, dy, dw, dh) {
     const dirIdx = dirMap[direction] ?? 0;
     ctx.drawImage(img, dirIdx * 32, 0, 32, 32, dx, dy, dw, dh);
   } else {
-    drawFirstFrame(ctx, img, dx, dy, dw, dh);
+    drawFirstFrame(ctx, img, dx, dy, dw, dh, 0);
   }
   return true;
 }
@@ -149,7 +181,7 @@ function screenToWorld(sx, sy, canvasWidth, canvasHeight, centerCamX, centerCamY
 }
 
 // ============================================================================
-// Spatial Map Indexing (O(1) Tile & Entity Lookup)
+// Spatial Map & Floor Item Indexing (O(visible_tiles))
 // ============================================================================
 
 function buildSpatialIndex() {
@@ -158,12 +190,14 @@ function buildSpatialIndex() {
   state.spatial.walls.clear();
   state.spatial.windows.clear();
   state.spatial.objects.clear();
+  state.spatial.lights.clear();
   state.spatial.doorsByTile.clear();
 
   for (const [tx, ty, tname, variant] of state.map.tiles) {
     state.spatial.tiles.set(`${tx},${ty}`, [tname, variant]);
   }
   for (const w of state.map.walls) {
+    if ((w.proto || "").includes("Wallmount")) continue;
     const tx = Math.floor(w.x);
     const ty = Math.floor(w.y);
     state.spatial.walls.set(`${tx},${ty}`, w);
@@ -186,8 +220,25 @@ function buildSpatialIndex() {
       state.spatial.objects.set(key, []);
     }
     state.spatial.objects.get(key).push(obj);
+    if ((obj.proto || "").toLowerCase().includes("light")) {
+      state.spatial.lights.set(key, obj);
+    }
   }
   buildMinimapBase();
+}
+
+function rebuildFloorItemsSpatial(floorItems) {
+  state.floorItemsCache = floorItems || [];
+  state.spatial.floorByTile.clear();
+  for (const fi of state.floorItemsCache) {
+    const tx = Math.floor(fi.x);
+    const ty = Math.floor(fi.y);
+    const key = `${tx},${ty}`;
+    if (!state.spatial.floorByTile.has(key)) {
+      state.spatial.floorByTile.set(key, []);
+    }
+    state.spatial.floorByTile.get(key).push(fi);
+  }
 }
 
 // ============================================================================
@@ -255,21 +306,19 @@ function playSs14Sound(type) {
     } else if (type === "radio") {
       osc.type = "sine";
       osc.frequency.setValueAtTime(1350, now);
-      gain.gain.setValueAtTime(0.03, now);
+      gain.gain.setValueAtTime(0.025, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
       osc.start(now);
       osc.stop(now + 0.05);
     }
-  } catch (_e) {
-    // Ignore audio context autoplay restrictions until user clicks
-  }
+  } catch (_e) {}
 }
 
 function buildMinimapBase() {
   if (!state.map) return;
   const off = document.createElement("canvas");
-  off.width = 190;
-  off.height = 125;
+  off.width = 168;
+  off.height = 110;
   const ctx = off.getContext("2d");
   ctx.fillStyle = "#04070f";
   ctx.fillRect(0, 0, off.width, off.height);
@@ -282,14 +331,14 @@ function buildMinimapBase() {
   for (const [tx, ty] of state.map.tiles) {
     const mx = ((tx - b.minX + 3) / spanX) * off.width;
     const my = ((b.maxY - ty + 3) / spanY) * off.height;
-    ctx.fillRect(mx, my, 1.6, 1.6);
+    ctx.fillRect(mx, my, 1.5, 1.5);
   }
 
   ctx.fillStyle = "#475569";
   for (const w of state.map.walls) {
     const mx = ((w.x - b.minX + 3) / spanX) * off.width;
     const my = ((b.maxY - w.y + 3) / spanY) * off.height;
-    ctx.fillRect(mx, my, 1.6, 1.6);
+    ctx.fillRect(mx, my, 1.5, 1.5);
   }
 
   state.minimapBaseCanvas = off;
@@ -313,17 +362,16 @@ function renderMinimap() {
       const my = ((b.maxY - rpos.y + 3) / spanY) * canvas.height;
       ctx.fillStyle = ag.id === state.selectedAgentId ? "#ffffff" : (ag.color || "#38bdf8");
       ctx.beginPath();
-      ctx.arc(mx, my, ag.id === state.selectedAgentId ? 3.2 : 2.1, 0, Math.PI * 2);
+      ctx.arc(mx, my, ag.id === state.selectedAgentId ? 3.0 : 2.0, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // Camera center reticle
   const cx = ((state.camX - b.minX + 3) / spanX) * canvas.width;
   const cy = ((b.maxY - state.camY + 3) / spanY) * canvas.height;
   ctx.strokeStyle = "#38bdf8";
   ctx.lineWidth = 1;
-  ctx.strokeRect(cx - 12, cy - 8, 24, 16);
+  ctx.strokeRect(cx - 10, cy - 7, 20, 14);
 }
 
 // ============================================================================
@@ -342,15 +390,16 @@ async function initApp() {
   state.apiLogs = data.apiLogs || [];
 
   buildSpatialIndex();
+  if (state.live?.floorItems) {
+    rebuildFloorItemsSpatial(state.live.floorItems);
+  }
 
-  // Preload core textures
   if (state.sprites) {
     Object.values(state.sprites.tiles || {}).forEach(getSpriteImage);
     Object.values(state.sprites.humanoid || {}).forEach(getSpriteImage);
     Object.values(state.sprites.items || {}).forEach((it) => getSpriteImage(it.url));
   }
 
-  // Sync saved browser API key to server on startup if present
   if (state.browserLlm.apiKey) {
     fetch("/api/config", {
       method: "POST",
@@ -371,6 +420,7 @@ async function initApp() {
   renderCrewRoster(true);
   renderInspector(true);
   renderPlayerHud(true);
+  renderEquipWindow(true);
   renderChatFeed(true);
   renderApiLogs(true);
 
@@ -388,6 +438,9 @@ function connectWebSocket() {
     try {
       const payload = JSON.parse(event.data);
       if (payload.type === "state") {
+        if (payload.state.floorItems) {
+          rebuildFloorItemsSpatial(payload.state.floorItems);
+        }
         state.live = payload.state;
         state.llm = payload.llm;
         state.apiLogs = payload.apiLogs || [];
@@ -395,6 +448,7 @@ function connectWebSocket() {
         renderCrewRoster(false);
         renderInspector(false);
         renderPlayerHud(false);
+        renderEquipWindow(false);
         renderChatFeed(false);
         renderApiLogs(false);
       }
@@ -471,7 +525,7 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
     const model = (state.browserLlm.model || "gpt-4o-mini").trim();
 
     if (statusEl) {
-      statusEl.textContent = `📡 Запрос к ${model} для «${promptData.agentName}»...`;
+      statusEl.textContent = `📡 Запрос к ${model} (${promptData.agentName})...`;
     }
 
     const t0 = performance.now();
@@ -489,7 +543,6 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
       }),
     });
 
-    // Fallback for reasoning models (o1/o3/gpt-5/deepseek-reasoner) that reject max_tokens or temperature
     if (llmRes.status === 400) {
       llmRes = await fetch(endpoint, {
         method: "POST",
@@ -517,7 +570,7 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
         }),
       });
       if (statusEl) {
-        statusEl.textContent = `❌ Ошибка HTTP ${llmRes.status}`;
+        statusEl.textContent = `❌ HTTP ${llmRes.status}`;
       }
       state.browserLlm.inFlight = false;
       updateTopTelemetry();
@@ -540,17 +593,21 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
     });
     const applied = await applyRes.json();
     if (applied.state) {
+      if (applied.state.floorItems) {
+        rebuildFloorItemsSpatial(applied.state.floorItems);
+      }
       state.live = applied.state;
       state.llm = applied.llm;
       state.apiLogs = applied.apiLogs || state.apiLogs;
       renderCrewRoster(false);
       renderInspector(false);
       renderPlayerHud(false);
+      renderEquipWindow(false);
       renderChatFeed(false);
       renderApiLogs(true);
     }
     if (statusEl) {
-      statusEl.textContent = `✅ Ответ от ${model} за ${latencyMs} мс (${promptData.agentName})`;
+      statusEl.textContent = `✅ ${model}: ${latencyMs} мс (${promptData.agentName})`;
     }
     state.browserLlm.inFlight = false;
     updateTopTelemetry();
@@ -567,7 +624,7 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
       }).catch(() => {});
     }
     if (statusEl) {
-      statusEl.textContent = `⚠️ Сетевая ошибка: ${err.message || err}`;
+      statusEl.textContent = `⚠️ Ошибка сети/CORS: ${err.message || err}`;
     }
     state.browserLlm.inFlight = false;
     updateTopTelemetry();
@@ -576,7 +633,7 @@ async function runBrowserDirectLlmStep(specificAgentId = null) {
 }
 
 // ============================================================================
-// High-Performance 60 FPS Viewport-Culled Canvas Renderer
+// Fullscreen 60 FPS Space Station 14 Renderer (Parallax + Rotations + Lighting)
 // ============================================================================
 
 function renderLoop(now) {
@@ -591,12 +648,12 @@ function renderLoop(now) {
 
   handleContinuousWasd(now);
   interpolateAgents();
+  renderMainViewport(now);
+  renderMinimap();
 
-  if (state.viewMode === "quad") {
-    renderQuadViewports();
-  } else {
-    renderMainViewport();
-    renderMinimap();
+  // Also render Quad CCTV canvases if the CCTV window is open
+  if (!document.getElementById("cctvWindow").classList.contains("hidden")) {
+    renderQuadViewports(now);
   }
 
   requestAnimationFrame(renderLoop);
@@ -610,24 +667,25 @@ function interpolateAgents() {
   for (const ag of state.live.agents) {
     const cur = state.renderPos.get(ag.id);
     if (!cur) {
-      state.renderPos.set(ag.id, { x: ag.x, y: ag.y });
+      state.renderPos.set(ag.id, { x: ag.x, y: ag.y, moving: false });
       continue;
     }
     if (ag.id === state.selectedAgentId && userMovingActive) {
-      // Keep client-side predicted position authoritative while user holds WASD!
       ag.x = cur.x;
       ag.y = cur.y;
+      cur.moving = true;
       continue;
     }
-    if (Math.hypot(ag.x - cur.x, ag.y - cur.y) > 6.0) {
-      state.renderPos.set(ag.id, { x: ag.x, y: ag.y });
+    const dist = Math.hypot(ag.x - cur.x, ag.y - cur.y);
+    if (dist > 6.0) {
+      state.renderPos.set(ag.id, { x: ag.x, y: ag.y, moving: false });
     } else {
       cur.x += (ag.x - cur.x) * 0.28;
       cur.y += (ag.y - cur.y) * 0.28;
+      cur.moving = dist > 0.03;
     }
   }
 
-  // In "play" or "ghost" mode with follow camera, keep camera centered on active agent
   if (state.viewMode === "follow" && state.selectedAgentId) {
     const rpos = state.renderPos.get(state.selectedAgentId);
     if (rpos) {
@@ -637,7 +695,7 @@ function interpolateAgents() {
   }
 }
 
-function renderMainViewport() {
+function renderMainViewport(now) {
   const canvas = document.getElementById("stationCanvas");
   if (!canvas || !state.map) return;
 
@@ -653,11 +711,11 @@ function renderMainViewport() {
   const ctx = canvas.getContext("2d");
   ctx.save();
   ctx.scale(dpr, dpr);
-  renderStationScene(ctx, rect.width, rect.height, state.camX, state.camY, state.zoom, true);
+  renderStationScene(ctx, rect.width, rect.height, state.camX, state.camY, state.zoom, true, now);
   ctx.restore();
 }
 
-function renderQuadViewports() {
+function renderQuadViewports(now) {
   for (let i = 0; i < 4; i++) {
     const canvas = document.getElementById(`quadCanvas${i}`);
     if (!canvas) continue;
@@ -671,16 +729,25 @@ function renderQuadViewports() {
     const camId = state.quadCameraIds[i];
     const camObj = (state.map?.cameras || []).find((c) => c.id === camId) || { x: 0, y: 0 };
     const ctx = canvas.getContext("2d");
-    renderStationScene(ctx, rect.width, rect.height, camObj.x, camObj.y, 1.05, false);
+    renderStationScene(ctx, rect.width, rect.height, camObj.x, camObj.y, 1.05, false, now);
   }
 }
 
-function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, isInteractive) {
+function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, isInteractive, now = 0) {
   ctx.imageSmoothingEnabled = false;
 
-  // 1. Deep space background
-  ctx.fillStyle = "#040710";
+  // 1. Deep space background + SS14 Starfield Parallax
+  ctx.fillStyle = "#03050b";
   ctx.fillRect(0, 0, width, height);
+
+  for (const st of STARFIELD) {
+    const sx = ((st.x - centerCamX * 32 * st.depth) % width + width) % width;
+    const sy = ((st.y + centerCamY * 32 * st.depth) % height + height) % height;
+    ctx.fillStyle = st.color;
+    ctx.globalAlpha = st.alpha;
+    ctx.fillRect(sx, sy, st.size, st.size);
+  }
+  ctx.globalAlpha = 1.0;
 
   if (!state.map || !state.sprites) return;
 
@@ -698,7 +765,7 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
   const openDoors = new Set(state.live?.openDoorUids || []);
   const boltedDoors = new Set(state.live?.boltedDoorUids || []);
 
-  // 2. Viewport-culled Floors, Walls, Windows & Static Objects (O(visible_tiles)!)
+  // 2. Viewport-culled Floors, Rotated Furniture/Machines, Items, Walls, Windows & Airlocks
   for (let ty = maxTy; ty >= minTy; ty--) {
     for (let tx = minTx; tx <= maxTx; tx++) {
       const key = `${tx},${ty}`;
@@ -709,7 +776,7 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
       const sy = Math.floor(height / 2 - (ty + 1 - centerCamY) * scale);
       const drawSize = Math.ceil(scale);
 
-      // Floor tile
+      // 2a. Floor tile
       const tname = tileInfo[0];
       if (tname === "FloorLattice") {
         ctx.strokeStyle = "#334155";
@@ -718,60 +785,77 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
       } else {
         const tUrl = tileSprites[tname] || tileSprites["FloorSteel"];
         const tImg = getSpriteImage(tUrl);
-        if (!drawFirstFrame(ctx, tImg, sx, sy, drawSize, drawSize)) {
+        if (!drawFirstFrame(ctx, tImg, sx, sy, drawSize, drawSize, 0)) {
           ctx.fillStyle = "#1e293b";
           ctx.fillRect(sx, sy, drawSize, drawSize);
         }
       }
 
-      // Objects on this tile
+      // 2b. Furniture, Tables, Chairs, Beds, Lockers, Vending & Consoles (with exact rotation!)
       const objs = state.spatial.objects.get(key);
       if (objs) {
         for (const obj of objs) {
           const pInfo = protoSprites[obj.proto];
           const oImg = pInfo ? getSpriteImage(pInfo.url) : null;
-          if (!drawFirstFrame(ctx, oImg, sx, sy, drawSize, drawSize)) {
-            ctx.fillStyle = obj.category === "console" ? "#0284c7" : "#475569";
-            ctx.fillRect(sx + 4, sy + 4, drawSize - 8, drawSize - 8);
-          }
+          drawFirstFrame(ctx, oImg, sx, sy, drawSize, drawSize, obj.rot || 0);
         }
       }
 
-      // Wall on this tile
+      // 2c. Pickable Map Items lying on this tile/table (`floorItems`)
+      const fitems = state.spatial.floorByTile.get(key);
+      if (fitems) {
+        for (const fi of fitems) {
+          const [isx, isy] = worldToScreen(fi.x, fi.y, width, height, centerCamX, centerCamY, zoom);
+          const itemSize = scale * 0.72;
+          const img = getSpriteImage(fi.url);
+          drawFirstFrame(ctx, img, isx - itemSize / 2, isy - itemSize / 2, itemSize, itemSize, 0);
+        }
+      }
+
+      // 2d. Solid Wall with 3D SS14 depth bevel
       const wall = state.spatial.walls.get(key);
       if (wall) {
         const pInfo = protoSprites[wall.proto] || protoSprites["WallSolid"];
         const wImg = pInfo ? getSpriteImage(pInfo.url) : null;
-        if (!drawFirstFrame(ctx, wImg, sx, sy, drawSize, drawSize)) {
+        if (!drawFirstFrame(ctx, wImg, sx, sy, drawSize, drawSize, 0)) {
           ctx.fillStyle = "#475569";
           ctx.fillRect(sx, sy, drawSize, drawSize);
         }
+        // Subtle 3D top highlight & bottom shadow for wall depth
+        ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.fillRect(sx, sy, drawSize, Math.max(2, drawSize * 0.1));
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.fillRect(sx, sy + drawSize * 0.85, drawSize, drawSize * 0.15);
       }
 
-      // Window on this tile
+      // 2e. Window
       const win = state.spatial.windows.get(key);
       if (win) {
         const pInfo = protoSprites[win.proto] || protoSprites["Window"];
         const winImg = pInfo ? getSpriteImage(pInfo.url) : null;
-        if (!drawFirstFrame(ctx, winImg, sx, sy, drawSize, drawSize)) {
+        if (!drawFirstFrame(ctx, winImg, sx, sy, drawSize, drawSize, win.rot || 0)) {
           ctx.fillStyle = "rgba(56, 189, 248, 0.35)";
           ctx.fillRect(sx + 2, sy + 2, drawSize - 4, drawSize - 4);
         }
       }
 
-      // Door / Airlock on this tile
+      // 2f. Door / Airlock
       const door = state.spatial.doorsByTile.get(key);
       if (door) {
         const isOpen = openDoors.has(door.uid);
         const isBolted = boltedDoors.has(door.uid);
         const pInfo = protoSprites[door.proto] || protoSprites["Airlock"];
         if (isOpen) {
-          ctx.strokeStyle = "rgba(34, 197, 94, 0.65)";
-          ctx.lineWidth = Math.max(1, 1.5 * zoom);
+          // Open airlock side tracks
+          ctx.fillStyle = "rgba(15, 23, 42, 0.55)";
+          ctx.fillRect(sx, sy, drawSize * 0.16, drawSize);
+          ctx.fillRect(sx + drawSize * 0.84, sy, drawSize * 0.16, drawSize);
+          ctx.strokeStyle = "rgba(34, 197, 94, 0.55)";
+          ctx.lineWidth = 1.5;
           ctx.strokeRect(sx + 2, sy + 2, drawSize - 4, drawSize - 4);
         } else {
           const dImg = pInfo ? getSpriteImage(pInfo.url) : null;
-          if (!drawFirstFrame(ctx, dImg, sx, sy, drawSize, drawSize)) {
+          if (!drawFirstFrame(ctx, dImg, sx, sy, drawSize, drawSize, 0)) {
             ctx.fillStyle = "#334155";
             ctx.fillRect(sx, sy, drawSize, drawSize);
           }
@@ -785,37 +869,42 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
     }
   }
 
-  // 3. Floor Items (Pickable SS14 items lying on the station floor)
-  if (state.live?.floorItems) {
-    for (const fi of state.live.floorItems) {
-      if (fi.x < minTx || fi.x > maxTx || fi.y < minTy || fi.y > maxTy) continue;
-      const [sx, sy] = worldToScreen(fi.x, fi.y, width, height, centerCamX, centerCamY, zoom);
-      const itemSize = scale * 0.72;
-      const img = getSpriteImage(fi.url);
-      drawFirstFrame(ctx, img, sx - itemSize / 2, sy - itemSize / 2, itemSize, itemSize);
+  // 3. Dynamic Station Lighting & Lamp Glow (`Poweredlight` fixtures + Red Alert strobe)
+  if (state.lightingEnabled && zoom >= 0.7) {
+    const isRedAlert = state.live?.alertLevel === "red";
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let ty = maxTy; ty >= minTy; ty--) {
+      for (let tx = minTx; tx <= maxTx; tx++) {
+        const light = state.spatial.lights.get(`${tx},${ty}`);
+        if (!light) continue;
+        const [lx, ly] = worldToScreen(light.x, light.y, width, height, centerCamX, centerCamY, zoom);
+        const radius = scale * 2.8;
+        const grad = ctx.createRadialGradient(lx, ly, scale * 0.1, lx, ly, radius);
+        if (isRedAlert) {
+          grad.addColorStop(0, "rgba(239, 68, 68, 0.14)");
+          grad.addColorStop(1, "rgba(239, 68, 68, 0)");
+        } else {
+          grad.addColorStop(0, "rgba(254, 249, 195, 0.085)");
+          grad.addColorStop(1, "rgba(56, 189, 248, 0)");
+        }
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(lx, ly, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
+    ctx.restore();
   }
 
-  // 4. Room Beacons (subtle labels)
-  if (zoom >= 0.75) {
-    ctx.font = `700 ${Math.max(9, Math.floor(10 * zoom))}px Inter, sans-serif`;
-    ctx.textAlign = "center";
-    for (const b of state.map.beacons) {
-      if (b.x < minTx || b.x > maxTx || b.y < minTy || b.y > maxTy) continue;
-      const [sx, sy] = worldToScreen(b.x, b.y, width, height, centerCamX, centerCamY, zoom);
-      ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
-      ctx.fillText(b.name.toUpperCase(), sx, sy);
-    }
-  }
-
-  // 5. AI Navigation Paths
+  // 4. Optional AI Navigation Paths
   if (state.showPaths && state.live?.agents && isInteractive) {
     for (const ag of state.live.agents) {
       if (!ag.path || ag.path.length === 0) continue;
       const rpos = state.renderPos.get(ag.id) || ag;
       ctx.save();
       ctx.strokeStyle = ag.color || "#38bdf8";
-      ctx.globalAlpha = ag.id === state.selectedAgentId ? 0.65 : 0.22;
+      ctx.globalAlpha = ag.id === state.selectedAgentId ? 0.65 : 0.25;
       ctx.lineWidth = Math.max(1.5, 2 * zoom);
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
@@ -830,7 +919,7 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
     }
   }
 
-  // 6. Visual Effects (Laser Beams, Stun Slash, Healing Aura, HONK, Ghost Boo)
+  // 5. Visual Effects (Laser Beams, Stun Slash, Healing Aura, HONK, Ghost Boo)
   if (state.live?.effects) {
     for (const ef of state.live.effects) {
       if (!state.seenEffectIds.has(ef.id)) {
@@ -873,7 +962,7 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
     }
   }
 
-  // 7. Render Crew Agents & Ghost Observers
+  // 6. Crew Mobs & Ghost Observers (with 4-directional sprites + walking bob + shadow)
   if (state.live?.agents) {
     const hum = state.sprites.humanoid || {};
     const outfits = state.sprites.job_outfits || {};
@@ -883,32 +972,41 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
       if (rpos.x < minTx - 1 || rpos.x > maxTx + 1 || rpos.y < minTy - 1 || rpos.y > maxTy + 1) continue;
 
       const [sx, sy] = worldToScreen(rpos.x, rpos.y, width, height, centerCamX, centerCamY, zoom);
+      const bobY = rpos.moving && !ag.isGhost && !ag.stunned && ag.status !== "Dead"
+        ? Math.sin(now * 0.02 + ag.uid) * (2.0 * zoom)
+        : 0;
       const drawX = sx - scale / 2;
-      const drawY = sy - scale / 2;
+      const drawY = sy - scale / 2 + bobY;
 
-      // Selection ring
+      // Drop shadow under feet
+      ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
+      ctx.beginPath();
+      ctx.ellipse(sx, sy + scale * 0.36, scale * 0.28, scale * 0.14, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Active player subtle indicator
       if (ag.id === state.selectedAgentId) {
         ctx.save();
-        ctx.strokeStyle = ag.combatMode ? "#ef4444" : (ag.isGhost ? "#a855f7" : "#38bdf8");
-        ctx.lineWidth = Math.max(2, 2.5 * zoom);
+        ctx.strokeStyle = ag.combatMode ? "#ef4444" : (ag.isGhost ? "#a855f7" : "rgba(56, 189, 248, 0.75)");
+        ctx.lineWidth = Math.max(1.5, 2 * zoom);
         ctx.beginPath();
-        ctx.arc(sx, sy, scale * 0.58, 0, Math.PI * 2);
+        ctx.arc(sx, sy, scale * 0.48, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
 
       ctx.save();
       if (ag.isGhost) {
+        const floatY = Math.sin(now * 0.005) * (3.0 * zoom);
         ctx.globalAlpha = 0.78;
         const ghostImg = getSpriteImage(hum.ghost);
-        if (!drawDirectionalFrame(ctx, ghostImg, ag.direction, drawX, drawY, scale, scale)) {
+        if (!drawDirectionalFrame(ctx, ghostImg, ag.direction, drawX, drawY + floatY, scale, scale)) {
           ctx.fillStyle = "#a855f7";
           ctx.beginPath();
           ctx.arc(sx, sy, scale * 0.38, 0, Math.PI * 2);
           ctx.fill();
         }
       } else {
-        // Stunned / Dead rotation
         if (ag.status === "Dead" || ag.stunned) {
           ctx.translate(sx, sy);
           ctx.rotate(Math.PI / 2);
@@ -938,11 +1036,10 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
           drawDirectionalFrame(ctx, getSpriteImage(outfit.head), ag.direction, drawX, drawY, scale, scale);
         }
 
-        // Draw held item icon in hand
         const activeHandObj = ag.activeHand === "left" ? ag.leftHand : ag.rightHand;
         if (activeHandObj && activeHandObj.url) {
           const itemImg = getSpriteImage(activeHandObj.url);
-          drawFirstFrame(ctx, itemImg, sx + scale * 0.05, sy - scale * 0.05, scale * 0.45, scale * 0.45);
+          drawFirstFrame(ctx, itemImg, sx + scale * 0.05, drawY + scale * 0.45, scale * 0.42, scale * 0.42, 0);
         }
 
         if (!drewBody) {
@@ -954,25 +1051,21 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
       }
       ctx.restore();
 
-      // Status icons above head (Stunned / Cuffed / Dead)
       if (ag.stunned || ag.cuffed || ag.status === "Dead") {
         ctx.font = `700 ${Math.max(10, Math.floor(11 * zoom))}px Inter, sans-serif`;
         ctx.textAlign = "center";
         ctx.fillStyle = "#fde047";
         const badge = ag.status === "Dead" ? "💀 МЁРТВ" : (ag.cuffed ? "⛓️ В НАРУЧНИКАХ" : "💫 ОГЛУШЁН");
-        ctx.fillText(badge, sx, drawY - 16 * zoom);
+        ctx.fillText(badge, sx, drawY - 14 * zoom);
       }
 
-      // Nameplate & Speech Bubble
-      if (state.showNames && zoom >= 0.5) {
-        ctx.font = `700 ${Math.max(9, Math.floor(10.5 * zoom))}px Inter, sans-serif`;
+      if (state.showNames && zoom >= 0.55) {
+        ctx.font = `700 ${Math.max(9, Math.floor(10 * zoom))}px Inter, sans-serif`;
         ctx.textAlign = "center";
-        const labelY = drawY - 4 * zoom;
-
-        const nameW = ctx.measureText(ag.name).width + 8;
-        ctx.fillStyle = "rgba(9, 13, 22, 0.82)";
-        ctx.fillRect(sx - nameW / 2, labelY - 10 * zoom, nameW, 13 * zoom);
-
+        const labelY = drawY - 3 * zoom;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+        const nameW = ctx.measureText(ag.name).width + 6;
+        ctx.fillRect(sx - nameW / 2, labelY - 9 * zoom, nameW, 12 * zoom);
         ctx.fillStyle = ag.color || "#f8fafc";
         ctx.fillText(ag.name, sx, labelY);
 
@@ -980,18 +1073,18 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
           const bubbleText = ag.lastSpeech.length > 56 ? ag.lastSpeech.slice(0, 56) + "…" : ag.lastSpeech;
           ctx.font = `600 ${Math.max(9, Math.floor(10 * zoom))}px Inter, sans-serif`;
           const bw = ctx.measureText(bubbleText).width + 12;
-          const by = labelY - 26 * zoom;
+          const by = labelY - 25 * zoom;
 
-          ctx.fillStyle = "rgba(15, 23, 42, 0.94)";
+          ctx.fillStyle = "rgba(11, 16, 28, 0.92)";
           ctx.strokeStyle = ag.color || "#38bdf8";
           ctx.lineWidth = 1.2;
           ctx.beginPath();
-          ctx.roundRect(sx - bw / 2, by, bw, 16 * zoom, 5);
+          ctx.roundRect(sx - bw / 2, by, bw, 15 * zoom, 4);
           ctx.fill();
           ctx.stroke();
 
-          ctx.fillStyle = "#f8fafc";
-          ctx.fillText(bubbleText, sx, by + 11.5 * zoom);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(bubbleText, sx, by + 11 * zoom);
         }
       }
     }
@@ -999,7 +1092,7 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
 }
 
 // ============================================================================
-// Player HUD, Crew Roster, Inspector & Chat (Diff-Throttled DOM Updates)
+// HUD, Alerts, Equipment Window & Chat Updates
 // ============================================================================
 
 function updateTopTelemetry() {
@@ -1009,7 +1102,7 @@ function updateTopTelemetry() {
 
   const alertBadge = document.getElementById("alertBadge");
   const lvl = (state.live.alertLevel || "green").toLowerCase();
-  alertBadge.className = `alert-badge ${lvl}`;
+  alertBadge.className = `alert-val ${lvl}`;
   const lvlRu = { green: "ЗЕЛЁНЫЙ", blue: "СИНИЙ", red: "КРАСНЫЙ" };
   alertBadge.textContent = lvlRu[lvl] || lvl.toUpperCase();
 
@@ -1018,13 +1111,13 @@ function updateTopTelemetry() {
   const totalCalls = state.llm?.totalLlmCalls || 0;
   if (state.browserLlm.inFlight) {
     llmBadge.className = "engine-badge busy";
-    llmBadge.textContent = `📡 Запрос к ${state.browserLlm.model}...`;
+    llmBadge.textContent = `Запрос...`;
   } else if (hasKey) {
     llmBadge.className = "engine-badge online";
-    llmBadge.textContent = `🟢 OpenAI (${totalCalls} выз.)`;
+    llmBadge.textContent = `Активен (${totalCalls})`;
   } else {
     llmBadge.className = "engine-badge autonomous";
-    llmBadge.textContent = "⚙️ Введите API ключ";
+    llmBadge.textContent = "Ввести ключ";
   }
 
   document.getElementById("apiCallCountTab").textContent = String(totalCalls);
@@ -1056,6 +1149,14 @@ function renderPlayerHud(force = false) {
   document.getElementById("hudHealthText").textContent = `${Math.round(ag.health)}%`;
   document.getElementById("hudRoomBadge").textContent = `📍 ${ag.currentRoom}`;
 
+  const hpTile = document.getElementById("alertTileHealth");
+  hpTile.className = `ss14-alert-tile ${ag.health > 70 ? "ok" : (ag.health > 30 ? "warn" : "danger")}`;
+
+  const combatTile = document.getElementById("alertTileCombat");
+  combatTile.className = `ss14-alert-tile ${ag.combatMode ? "danger" : "ok"}`;
+  document.getElementById("alertCombatIcon").textContent = ag.combatMode ? "⚔️" : "🛡️";
+  document.getElementById("alertCombatText").textContent = ag.combatMode ? "БОЙ" : "МИР";
+
   // Left Hand
   const lhSlot = document.getElementById("hudLeftHand");
   const lhImg = document.getElementById("hudLeftImg");
@@ -1084,7 +1185,7 @@ function renderPlayerHud(force = false) {
     rhName.textContent = "Пусто";
   }
 
-  // Inventory Bar
+  // Belt / Pocket Inventory Bar
   const invBar = document.getElementById("hudInventoryBar");
   invBar.innerHTML = "";
   const invList = ag.inventory || [];
@@ -1093,16 +1194,15 @@ function renderPlayerHud(force = false) {
     const slot = document.createElement("div");
     slot.className = "inv-slot";
     if (item && item.id) {
-      slot.title = `Кликните, чтобы взять «${item.name}» в активную руку`;
+      slot.title = `Взять «${item.name}» в активную руку`;
       slot.innerHTML = `<img src="${item.url}" alt="" /><span>${item.name}</span>`;
       slot.onclick = () => sendAgentCommand({ agentId: ag.id, action: "equip_inv", index: i });
     } else {
-      slot.innerHTML = `<span>Слот ${i + 1}</span>`;
+      slot.innerHTML = `<span>Пояс ${i + 1}</span>`;
     }
     invBar.appendChild(slot);
   }
 
-  // Combat Button
   const combatBtn = document.getElementById("hudCombatBtn");
   if (ag.combatMode) {
     combatBtn.className = "hud-combat-btn harm";
@@ -1112,9 +1212,47 @@ function renderPlayerHud(force = false) {
     combatBtn.textContent = "🛡️ МИР [C]";
   }
 
-  // Ghost Banner visibility
-  const ghostBanner = document.getElementById("ghostHudBanner");
-  ghostBanner.classList.toggle("hidden", !ag.isGhost);
+  document.getElementById("ghostHudBanner").classList.toggle("hidden", !ag.isGhost);
+}
+
+function renderEquipWindow(force = false) {
+  const win = document.getElementById("equipWindow");
+  if (!win || win.classList.contains("hidden") || !state.live?.agents) return;
+  const ag = state.live.agents.find((a) => a.id === state.selectedAgentId) || state.live.agents[0];
+  if (!ag) return;
+
+  const hash = JSON.stringify([ag.id, ag.job, ag.leftHand?.id, ag.rightHand?.id, (ag.inventory || []).map((i) => i.id)]);
+  if (!force && state.domHashes.equip === hash) return;
+  state.domHashes.equip = hash;
+
+  const outfit = (state.sprites?.job_outfits || {})[ag.job] || {};
+  document.getElementById("equipCharSummary").innerHTML = `
+    <div><strong>${ag.name}</strong> — ${ag.jobTitleRu} (${ag.department})</div>
+    <div style="font-size:10.5px;color:#94a3b8;margin-top:2px">Здоровье: ${Math.round(ag.health)}% • Отсек: ${ag.currentRoom}</div>
+  `;
+
+  const grid = document.getElementById("equipSlotsGrid");
+  grid.innerHTML = "";
+  const slots = [
+    ["Головной убор", outfit.head, "Шлем / Шапка должности"],
+    ["Верхняя одежда", outfit.outer, "Броня / Халат / Скафандр"],
+    ["Униформа", outfit.jumpsuit, "Комбинезон станции"],
+    ["Обувь", outfit.shoes, "Ботинки"],
+    ["Левая рука", ag.leftHand?.url, ag.leftHand?.name || "Пусто"],
+    ["Правая рука", ag.rightHand?.url, ag.rightHand?.name || "Пусто"],
+  ];
+  for (const [slotTitle, imgUrl, itemName] of slots) {
+    const card = document.createElement("div");
+    card.className = "bui-item-btn";
+    card.innerHTML = `
+      ${imgUrl ? `<img src="${imgUrl}" alt="" />` : `<div style="width:28px;height:28px;background:#0f172a;border-radius:4px"></div>`}
+      <div>
+        <div style="font-size:10px;color:#38bdf8;font-weight:800">${slotTitle}</div>
+        <div style="font-size:11px;font-weight:700">${itemName}</div>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
 }
 
 function renderCrewRoster(force = false) {
@@ -1133,8 +1271,8 @@ function renderCrewRoster(force = false) {
     div.className = `crew-card ${ag.id === state.selectedAgentId ? "active" : ""}`;
     div.innerHTML = `
       <div class="crew-top">
-        <span class="crew-name" style="color:${ag.color}">${ag.isGhost ? "👻 " : ""}${ag.name}</span>
-        <span class="crew-dept">${ag.browserControlled ? "🎮 ИГРОК" : "🤖 ИИ"}</span>
+        <span style="color:${ag.color}">${ag.isGhost ? "👻 " : ""}${ag.name}</span>
+        <span style="font-size:9.5px;color:#94a3b8">${ag.browserControlled ? "🎮 ИГРОК" : "🤖 ИИ"}</span>
       </div>
       <div class="crew-sub">
         <span>${ag.jobTitleRu}</span>
@@ -1143,15 +1281,11 @@ function renderCrewRoster(force = false) {
     `;
     div.onclick = () => {
       state.selectedAgentId = ag.id;
-      if (state.gameMode === "play" || state.gameMode === "ghost") {
-        state.viewMode = "follow";
-      } else {
-        state.camX = ag.x;
-        state.camY = ag.y;
-      }
+      state.viewMode = "follow";
       renderCrewRoster(true);
       renderInspector(true);
       renderPlayerHud(true);
+      renderEquipWindow(true);
     };
     container.appendChild(div);
   }
@@ -1162,7 +1296,7 @@ function renderInspector(force = false) {
   const ag = state.live.agents.find((a) => a.id === state.selectedAgentId) || state.live.agents[0];
   if (!ag) return;
 
-  const hash = `${ag.id}|${ag.currentRoom}|${Math.round(ag.health)}|${ag.llmCallsCount}|${ag.lastThought}|${ag.currentTask}|${ag.browserControlled}`;
+  const hash = `${ag.id}|${ag.currentRoom}|${Math.round(ag.health)}|${ag.llmCallsCount}|${ag.lastThought}|${ag.currentTask}`;
   if (!force && state.domHashes.inspector === hash) return;
   state.domHashes.inspector = hash;
 
@@ -1194,7 +1328,7 @@ function renderChatFeed(force = false) {
     div.className = `chat-msg ${msg.channel}`;
     div.innerHTML = `
       <div class="chat-meta">
-        <span>[${msg.time}] <strong>${msg.speakerName}</strong> (${msg.speakerJob})</span>
+        <span>[${msg.time}] <strong>${msg.speakerName}</strong></span>
         <span>${msg.channel} • ${msg.room}</span>
       </div>
       <div>${msg.message}</div>
@@ -1215,7 +1349,7 @@ function renderApiLogs(force = false) {
 
   feed.innerHTML = "";
   if (!state.apiLogs.length) {
-    feed.innerHTML = `<div class="chat-msg">Нажмите «⚙️ API Модель (OpenAI)», введите ваш API Key и нажмите «Сохранить» — здесь в реальном времени пойдут запросы и JSON-ответы модели для каждого члена экипажа.</div>`;
+    feed.innerHTML = `<div class="chat-msg">Откройте «⚙️ OpenAI API» сверху, введите API Key и нажмите «Сохранить» — здесь пойдут живые ответы модели.</div>`;
     return;
   }
 
@@ -1224,19 +1358,18 @@ function renderApiLogs(force = false) {
     div.className = "chat-msg Science";
     div.innerHTML = `
       <div class="chat-meta">
-        <span>[${log.time}] <strong>${log.agent}</strong> (${log.job || ""})</span>
+        <span>[${log.time}] <strong>${log.agent}</strong></span>
         <span>${log.model} • ${log.latencyMs}ms</span>
       </div>
       <div>💭 <em>${log.thought || "—"}</em></div>
       ${log.say ? `<div>🗣️ «${log.say}»</div>` : ""}
-      ${log.move ? `<div>🚶 Маршрут: ${log.move}</div>` : ""}
     `;
     feed.appendChild(div);
   }
 }
 
 // ============================================================================
-// Camera Lists, Beacons & Ghost Warp Dropdown
+// Cameras, Beacons & Ghost Warp
 // ============================================================================
 
 function populateCameraLists(filterText = "") {
@@ -1254,8 +1387,8 @@ function populateCameraLists(filterText = "") {
     div.className = `camera-item ${state.activeCameraId === cam.id ? "active" : ""}`;
     div.innerHTML = `
       <div class="cam-top">
-        <span class="cam-name">📹 ${cam.id}</span>
-        <span class="cam-dept">${cam.department}</span>
+        <span>📹 ${cam.id}</span>
+        <span style="font-size:9.5px;color:#94a3b8">${cam.department}</span>
       </div>
     `;
     div.onclick = () => selectCamera(cam);
@@ -1281,42 +1414,16 @@ function populateCameraLists(filterText = "") {
 
 function selectCamera(cam) {
   state.activeCameraId = cam.id;
+  state.viewMode = "single";
   state.camX = cam.x;
   state.camY = cam.y;
-  if (state.viewMode === "follow") {
-    state.viewMode = "single";
-  }
-  document.getElementById("activeCameraTitle").textContent = `CAM // ${cam.id.toUpperCase()} [${cam.department.toUpperCase()}]`;
   populateCameraLists(document.getElementById("cameraSearchInput").value);
 }
 
-function populateBeaconsAndRooms(filterText = "") {
-  const listEl = document.getElementById("beaconList");
+function populateBeaconsAndRooms() {
   const moveSelect = document.getElementById("moveRoomSelect");
   const ghostWarp = document.getElementById("ghostWarpSelect");
-  if (!listEl || !state.map) return;
-
-  listEl.innerHTML = "";
-  const q = filterText.trim().toLowerCase();
-
-  for (const b of state.map.beacons) {
-    if (q && !b.name.toLowerCase().includes(q)) continue;
-    const div = document.createElement("div");
-    div.className = "camera-item";
-    div.innerHTML = `
-      <div class="cam-top">
-        <span class="cam-name">🧭 ${b.name}</span>
-        <span class="cam-dept">(${Math.round(b.x)}, ${Math.round(b.y)})</span>
-      </div>
-    `;
-    div.onclick = () => {
-      state.viewMode = "free";
-      state.camX = b.x;
-      state.camY = b.y;
-      document.getElementById("activeCameraTitle").textContent = `СЕКТОР // ${b.name.toUpperCase()}`;
-    };
-    listEl.appendChild(div);
-  }
+  if (!state.map) return;
 
   if (moveSelect && moveSelect.options.length <= 1) {
     for (const b of state.map.beacons) {
@@ -1384,7 +1491,7 @@ function openBuiWindow(bui) {
     grid.className = "bui-grid";
     for (const id of list) {
       grid.appendChild(
-        makeItemBtn(id, "Выдать бесплатно", async () => {
+        makeItemBtn(id, "Выдать в руку", async () => {
           await sendBuiAction({ agentId: state.selectedAgentId, buiType: bui.type, itemId: id });
         })
       );
@@ -1469,10 +1576,12 @@ async function sendBuiAction(payload) {
   });
   const data = await res.json();
   if (data.state) {
+    if (data.state.floorItems) rebuildFloorItemsSpatial(data.state.floorItems);
     state.live = data.state;
     updateTopTelemetry();
     renderPlayerHud(true);
     renderInspector(true);
+    renderEquipWindow(true);
   }
   return data;
 }
@@ -1483,11 +1592,10 @@ async function sendBuiAction(payload) {
 
 function openContextMenu(clientX, clientY, wx, wy) {
   const menu = document.getElementById("contextMenu");
-  const wrapper = document.getElementById("singleViewportContainer").getBoundingClientRect();
   menu.innerHTML = "";
   menu.classList.remove("hidden");
-  menu.style.left = `${Math.min(wrapper.width - 220, clientX - wrapper.left)}px`;
-  menu.style.top = `${Math.min(wrapper.height - 200, clientY - wrapper.top)}px`;
+  menu.style.left = `${Math.min(window.innerWidth - 230, clientX)}px`;
+  menu.style.top = `${Math.min(window.innerHeight - 210, clientY)}px`;
 
   const title = document.createElement("div");
   title.className = "ctx-title";
@@ -1505,13 +1613,11 @@ function openContextMenu(clientX, clientY, wx, wy) {
     menu.appendChild(b);
   };
 
-  // 1. Check nearby agents
-  const clickedAgent = (state.live?.agents || []).find(
-    (a) => Math.hypot(a.x - wx, a.y - wy) < 0.85
-  );
+  const clickedAgent = (state.live?.agents || []).find((a) => Math.hypot(a.x - wx, a.y - wy) < 0.85);
   if (clickedAgent) {
-    addVerb(`🔍 Выбрать: ${clickedAgent.name}`, () => {
+    addVerb(`🔍 Осмотреть: ${clickedAgent.name}`, () => {
       state.selectedAgentId = clickedAgent.id;
+      document.getElementById("crewWindow").classList.remove("hidden");
       renderCrewRoster(true);
       renderInspector(true);
       renderPlayerHud(true);
@@ -1540,17 +1646,13 @@ function openContextMenu(clientX, clientY, wx, wy) {
     });
   }
 
-  // 2. Check floor items
-  const clickedFloorItem = (state.live?.floorItems || []).find(
-    (fi) => Math.hypot(fi.x - wx, fi.y - wy) < 0.85
-  );
+  const clickedFloorItem = state.floorItemsCache.find((fi) => Math.hypot(fi.x - wx, fi.y - wy) < 0.85);
   if (clickedFloorItem) {
-    addVerb(`✋ Поднять с пола: ${clickedFloorItem.name}`, () => {
+    addVerb(`✋ Поднять: ${clickedFloorItem.name}`, () => {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "pickup_item", uid: clickedFloorItem.uid });
     });
   }
 
-  // 3. Check door
   const tx = Math.floor(wx);
   const ty = Math.floor(wy);
   const door = state.spatial.doorsByTile.get(`${tx},${ty}`);
@@ -1560,7 +1662,6 @@ function openContextMenu(clientX, clientY, wx, wy) {
     });
   }
 
-  // 4. Check station object/machine
   const objs = state.spatial.objects.get(`${tx},${ty}`) || [];
   for (const obj of objs) {
     addVerb(`⚙️ Использовать: ${obj.name}`, async () => {
@@ -1569,14 +1670,17 @@ function openContextMenu(clientX, clientY, wx, wy) {
     });
   }
 
-  // 5. Walk here
+  addVerb(`🎯 Кинуть предмет из руки сюда`, () => {
+    sendAgentCommand({ agentId: state.selectedAgentId, action: "throw_item", x: wx, y: wy });
+  });
+
   addVerb(`🚶 Идти сюда (${Math.floor(wx)}, ${Math.floor(wy)})`, () => {
     sendAgentCommand({ agentId: state.selectedAgentId, action: "move_to", x: wx, y: wy });
   });
 }
 
 // ============================================================================
-// Mode Switching (Playable Crew Mode / Ghost Mode / CCTV Mode)
+// Mode Switching (Playable Crew Mode / Ghost Mode / CCTV Window)
 // ============================================================================
 
 async function setGameMode(mode) {
@@ -1600,12 +1704,10 @@ async function setGameMode(mode) {
     });
     const data = await res.json();
     if (data.ok) {
+      if (data.state.floorItems) rebuildFloorItemsSpatial(data.state.floorItems);
       state.live = data.state;
       state.selectedAgentId = data.agentId;
       state.viewMode = "follow";
-      document.getElementById("singleViewportContainer").classList.remove("hidden");
-      document.getElementById("quadViewportContainer").classList.add("hidden");
-      document.getElementById("activeCameraTitle").textContent = "👻 РЕЖИМ ГОСТА (MobObserver) — СВОБОДНЫЙ ПОЛЁТ";
       renderCrewRoster(true);
       renderInspector(true);
       renderPlayerHud(true);
@@ -1616,21 +1718,16 @@ async function setGameMode(mode) {
       state.selectedAgentId = state.previousPlayAgentId || "captain-vance";
     }
     state.viewMode = "follow";
-    document.getElementById("singleViewportContainer").classList.remove("hidden");
-    document.getElementById("quadViewportContainer").classList.add("hidden");
-    document.getElementById("activeCameraTitle").textContent = "🎮 ИГРОВОЙ РЕЖИМ — УПРАВЛЕНИЕ ПЕРСОНАЖЕМ";
     renderCrewRoster(true);
     renderInspector(true);
     renderPlayerHud(true);
   } else if (mode === "cctv") {
-    state.viewMode = "quad";
-    document.getElementById("singleViewportContainer").classList.add("hidden");
-    document.getElementById("quadViewportContainer").classList.remove("hidden");
+    document.getElementById("cctvWindow").classList.toggle("hidden");
   }
 }
 
 // ============================================================================
-// Keyboard & Mouse Gameplay Controls
+// 60 FPS Client-Side WASD Movement + WebSocket Sync
 // ============================================================================
 
 function isClientTilePassable(tx, ty, isGhost) {
@@ -1666,7 +1763,7 @@ function handleContinuousWasd(now) {
 
   let rpos = state.renderPos.get(ag.id);
   if (!rpos) {
-    rpos = { x: ag.x, y: ag.y };
+    rpos = { x: ag.x, y: ag.y, moving: true };
     state.renderPos.set(ag.id, rpos);
   }
 
@@ -1685,13 +1782,14 @@ function handleContinuousWasd(now) {
   ag.x = rpos.x;
   ag.y = rpos.y;
   ag.path = [];
+  rpos.moving = true;
+
   if (Math.abs(dx) > Math.abs(dy)) {
     ag.direction = dx > 0 ? "east" : "west";
   } else if (Math.abs(dy) > 0) {
     ag.direction = dy > 0 ? "north" : "south";
   }
 
-  // Sync over WebSocket at ~12 Hz (zero HTTP request spam!)
   if (now - state.lastWasdTime >= 75) {
     state.lastWasdTime = now;
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -1704,30 +1802,48 @@ function handleContinuousWasd(now) {
           direction: ag.direction,
         })
       );
-    } else {
-      sendAgentCommand({
-        agentId: ag.id,
-        action: "step_dir",
-        dx,
-        dy,
-      });
     }
   }
 }
 
+// ============================================================================
+// UI Events & SS14 Hotkeys
+// ============================================================================
+
 function bindUIEvents() {
-  // Top Mode Switcher
   document.getElementById("modePlayBtn").onclick = () => setGameMode("play");
   document.getElementById("modeGhostBtn").onclick = () => setGameMode("ghost");
   document.getElementById("modeCctvBtn").onclick = () => setGameMode("cctv");
 
-  // Ghost Banner Actions
+  document.getElementById("openEquipWindowBtn").onclick = () => {
+    const win = document.getElementById("equipWindow");
+    win.classList.toggle("hidden");
+    renderEquipWindow(true);
+  };
+  document.getElementById("hotbarEquipBtn").onclick = () => {
+    const win = document.getElementById("equipWindow");
+    win.classList.toggle("hidden");
+    renderEquipWindow(true);
+  };
+  document.getElementById("openCrewWindowBtn").onclick = () => {
+    document.getElementById("crewWindow").classList.toggle("hidden");
+  };
+  document.getElementById("hotbarCharPill").onclick = () => {
+    document.getElementById("crewWindow").classList.toggle("hidden");
+  };
+  document.getElementById("closeCctvWinBtn").onclick = () => {
+    document.getElementById("cctvWindow").classList.add("hidden");
+  };
+
+  document.querySelectorAll(".nano-win-close[data-closewin]").forEach((btn) => {
+    btn.onclick = () => document.getElementById(btn.dataset.closewin).classList.add("hidden");
+  });
+
+  // Ghost Banner
   document.getElementById("ghostBooBtn").onclick = () => {
     sendAgentCommand({ agentId: state.selectedAgentId, action: "ghost_boo" });
   };
-  document.getElementById("ghostReturnBodyBtn").onclick = () => {
-    setGameMode("play");
-  };
+  document.getElementById("ghostReturnBodyBtn").onclick = () => setGameMode("play");
   document.getElementById("ghostWarpSelect").onchange = (e) => {
     const val = e.target.value;
     if (!val) return;
@@ -1739,7 +1855,7 @@ function bindUIEvents() {
     e.target.value = "";
   };
 
-  // Bottom SS14 Player HUD Controls
+  // Bottom Hotbar & Hands
   document.getElementById("hudInteractNearBtn").onclick = async () => {
     const res = await sendAgentCommand({ agentId: state.selectedAgentId, action: "interact_nearest" });
     if (res.bui) openBuiWindow(res.bui);
@@ -1769,7 +1885,13 @@ function bindUIEvents() {
   document.getElementById("hudDropHandBtn").onclick = () => {
     sendAgentCommand({ agentId: state.selectedAgentId, action: "drop_item" });
   };
+  document.getElementById("hudThrowHandBtn").onclick = () => {
+    sendAgentCommand({ agentId: state.selectedAgentId, action: "throw_item" });
+  };
   document.getElementById("hudCombatBtn").onclick = () => {
+    sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_combat" });
+  };
+  document.getElementById("alertTileCombat").onclick = () => {
     sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_combat" });
   };
   document.getElementById("hudUplinkBtn").onclick = () => {
@@ -1779,27 +1901,25 @@ function bindUIEvents() {
     document.getElementById("buiWindow").classList.add("hidden");
   };
 
-  // Sidebar Tabs
-  document.querySelectorAll(".panel-tabs .tab-btn").forEach((btn) => {
+  // Chat Overlay Tabs
+  document.querySelectorAll(".chat-tab-btn").forEach((btn) => {
     btn.onclick = () => {
-      const parent = btn.closest(".sidebar, .chat-panel");
-      parent.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-      parent.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+      document.querySelectorAll(".chat-tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".ss14-chat-body").forEach((c) => c.classList.remove("active"));
       btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.add("active");
+      document.getElementById(btn.dataset.chattab).classList.add("active");
     };
   });
 
-  // Search filters
   document.getElementById("cameraSearchInput").oninput = (e) => populateCameraLists(e.target.value);
-  document.getElementById("beaconSearchInput").oninput = (e) => populateBeaconsAndRooms(e.target.value);
+  document.getElementById("singleCamModeBtn").onclick = () => {
+    document.getElementById("cctvWindow").classList.add("hidden");
+  };
+  document.getElementById("quadCamModeBtn").onclick = () => {
+    document.getElementById("cctvWindow").classList.remove("hidden");
+  };
 
-  // Camera View Mode Chips
-  document.getElementById("singleCamModeBtn").onclick = () => setViewMode("single");
-  document.getElementById("quadCamModeBtn").onclick = () => setViewMode("quad");
-  document.getElementById("freePanModeBtn").onclick = () => setViewMode("free");
-
-  // Zoom & HUD Toggles
+  // Top Bar Icon Toggles
   document.getElementById("zoomInBtn").onclick = () => setZoom(state.zoom * 1.25);
   document.getElementById("zoomOutBtn").onclick = () => setZoom(state.zoom / 1.25);
   document.getElementById("toggleSoundBtn").onclick = (e) => {
@@ -1807,11 +1927,19 @@ function bindUIEvents() {
     e.currentTarget.classList.toggle("active", state.soundEnabled);
     if (state.soundEnabled) playSs14Sound("radio");
   };
-  document.getElementById("toggleMinimapBtn").onclick = (e) => {
-    state.minimapEnabled = !state.minimapEnabled;
-    e.currentTarget.classList.toggle("active", state.minimapEnabled);
-    document.getElementById("minimapBox").classList.toggle("hidden", !state.minimapEnabled);
+  document.getElementById("toggleLightBtn").onclick = (e) => {
+    state.lightingEnabled = !state.lightingEnabled;
+    e.currentTarget.classList.toggle("active", state.lightingEnabled);
   };
+  document.getElementById("toggleNamesBtn").onclick = (e) => {
+    state.showNames = !state.showNames;
+    e.currentTarget.classList.toggle("active", state.showNames);
+  };
+  document.getElementById("togglePathsBtn").onclick = (e) => {
+    state.showPaths = !state.showPaths;
+    e.currentTarget.classList.toggle("active", state.showPaths);
+  };
+
   document.getElementById("minimapCanvas").onclick = (e) => {
     if (!state.map) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1822,29 +1950,10 @@ function bindUIEvents() {
     const spanY = Math.max(1, b.maxY - b.minY + 6);
     const wx = rx * spanX + b.minX - 3;
     const wy = b.maxY + 3 - ry * spanY;
-    if (state.gameMode === "play" || state.gameMode === "ghost") {
-      sendAgentCommand({ agentId: state.selectedAgentId, action: "move_to", x: wx, y: wy });
-    } else {
-      state.viewMode = "free";
-      state.camX = wx;
-      state.camY = wy;
-    }
-  };
-  document.getElementById("toggleNamesBtn").onclick = (e) => {
-    state.showNames = !state.showNames;
-    e.currentTarget.classList.toggle("active", state.showNames);
-  };
-  document.getElementById("togglePathsBtn").onclick = (e) => {
-    state.showPaths = !state.showPaths;
-    e.currentTarget.classList.toggle("active", state.showPaths);
-  };
-  document.getElementById("toggleCrtBtn").onclick = (e) => {
-    state.crtEnabled = !state.crtEnabled;
-    e.currentTarget.classList.toggle("active", state.crtEnabled);
-    document.getElementById("crtOverlay").classList.toggle("hidden", !state.crtEnabled);
+    sendAgentCommand({ agentId: state.selectedAgentId, action: "move_to", x: wx, y: wy });
   };
 
-  // Canvas Mouse Interactions (Left-Click Playable Actions + Right-Click SS14 Verb Menu)
+  // Canvas Mouse Interactions
   const canvas = document.getElementById("stationCanvas");
   canvas.addEventListener("mousedown", (e) => {
     document.getElementById("contextMenu").classList.add("hidden");
@@ -1913,9 +2022,12 @@ function bindUIEvents() {
     { passive: false }
   );
 
-  // Keyboard shortcuts (WASD + SS14 Hotkeys X, Z, Q, C, E, T, Y, G, M)
+  // Full SS14 Keyboard Shortcuts
   window.addEventListener("keydown", async (e) => {
-    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) {
+      if (e.key === "Escape") document.activeElement.blur();
+      return;
+    }
     state.keysDown.add(e.code);
 
     if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
@@ -1926,23 +2038,32 @@ function bindUIEvents() {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "use_hand" });
     } else if (e.code === "KeyQ") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "drop_item" });
+    } else if (e.code === "KeyF") {
+      sendAgentCommand({ agentId: state.selectedAgentId, action: "throw_item" });
     } else if (e.code === "KeyC") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_combat" });
     } else if (e.code === "KeyE") {
       const res = await sendAgentCommand({ agentId: state.selectedAgentId, action: "interact_nearest" });
       if (res.bui) openBuiWindow(res.bui);
+    } else if (e.code === "KeyI") {
+      document.getElementById("openEquipWindowBtn").click();
+    } else if (e.code === "KeyP") {
+      document.getElementById("openCrewWindowBtn").click();
     } else if (e.code === "KeyG") {
       setGameMode(state.gameMode === "ghost" ? "play" : "ghost");
     } else if (e.code === "KeyM") {
-      document.getElementById("toggleMinimapBtn").click();
+      state.minimapEnabled = !state.minimapEnabled;
+      document.getElementById("minimapBox").classList.toggle("hidden", !state.minimapEnabled);
     } else if (e.code === "KeyT") {
       e.preventDefault();
+      document.getElementById("chatChannelPrefix").value = "";
       document.getElementById("directSayInput").focus();
     } else if (e.code === "KeyY") {
       e.preventDefault();
-      const inp = document.getElementById("directSayInput");
-      if (!inp.value.startsWith(";")) inp.value = ";" + inp.value;
-      inp.focus();
+      document.getElementById("chatChannelPrefix").value = ";";
+      document.getElementById("directSayInput").focus();
+    } else if (e.code === "Escape") {
+      openModal("joinModal");
     }
   });
 
@@ -1950,7 +2071,7 @@ function bindUIEvents() {
     state.keysDown.delete(e.code);
   });
 
-  // Inspector & Direct Commands
+  // Crew Inspector & Direct Commands
   document.getElementById("playAsSelectedBtn").onclick = () => {
     setGameMode("play");
     sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_browser_control", enabled: true });
@@ -1969,7 +2090,10 @@ function bindUIEvents() {
 
   document.getElementById("sendSayBtn").onclick = sendSay;
   document.getElementById("directSayInput").onkeydown = (e) => {
-    if (e.key === "Enter") sendSay();
+    if (e.key === "Enter") {
+      sendSay();
+      e.target.blur();
+    }
   };
 
   document.getElementById("sendThoughtBtn").onclick = sendThought;
@@ -1986,7 +2110,6 @@ function bindUIEvents() {
 
   // Modals
   document.getElementById("openApiModalBtn").onclick = () => openModal("apiModal");
-  document.getElementById("llmStatusBadge").onclick = () => openModal("apiModal");
   document.getElementById("openJoinModalBtn").onclick = () => openModal("joinModal");
   document.getElementById("openEventModalBtn").onclick = () => openModal("eventModal");
 
@@ -2037,11 +2160,8 @@ async function handleCanvasClick(wx, wy) {
   const curAg = state.live?.agents?.find((a) => a.id === state.selectedAgentId);
 
   // 1. Check if clicked another character
-  const clickedAgent = (state.live?.agents || []).find(
-    (a) => Math.hypot(a.x - wx, a.y - wy) < 0.78
-  );
+  const clickedAgent = (state.live?.agents || []).find((a) => Math.hypot(a.x - wx, a.y - wy) < 0.78);
   if (clickedAgent) {
-    // If we are in Combat Mode or Ghost Mode or holding Medical/Cuffs, interact with target character!
     if (curAg && clickedAgent.id !== curAg.id && (curAg.combatMode || curAg.isGhost)) {
       const res = await sendAgentCommand({
         agentId: curAg.id,
@@ -2060,13 +2180,12 @@ async function handleCanvasClick(wx, wy) {
     renderCrewRoster(true);
     renderInspector(true);
     renderPlayerHud(true);
+    renderEquipWindow(true);
     return;
   }
 
-  // 2. Check if clicked a floor item -> pick it up!
-  const clickedFloorItem = (state.live?.floorItems || []).find(
-    (fi) => Math.hypot(fi.x - wx, fi.y - wy) < 0.7
-  );
+  // 2. Check if clicked a floor/table item -> pick it up!
+  const clickedFloorItem = state.floorItemsCache.find((fi) => Math.hypot(fi.x - wx, fi.y - wy) < 0.72);
   if (clickedFloorItem && curAg && !curAg.isGhost) {
     await sendAgentCommand({
       agentId: curAg.id,
@@ -2076,7 +2195,7 @@ async function handleCanvasClick(wx, wy) {
     return;
   }
 
-  // 3. Check if clicked a door -> toggle or hack/pry door
+  // 3. Check if clicked a door
   const tx = Math.floor(wx);
   const ty = Math.floor(wy);
   const door = state.spatial.doorsByTile.get(`${tx},${ty}`);
@@ -2089,7 +2208,7 @@ async function handleCanvasClick(wx, wy) {
     return;
   }
 
-  // 4. Check if clicked an interactive station object (Vending, Console, Locker, Bed)
+  // 4. Check if clicked a station machine / locker / vending / bed
   const objs = state.spatial.objects.get(`${tx},${ty}`);
   if (objs && objs.length > 0) {
     const res = await sendAgentCommand({
@@ -2097,14 +2216,13 @@ async function handleCanvasClick(wx, wy) {
       action: "interact",
       uid: objs[0].uid,
     });
-    if (res.bui) {
-      openBuiWindow(res.bui);
-    }
+    if (res.bui) openBuiWindow(res.bui);
     return;
   }
 
-  // 5. Otherwise walk/fly to clicked tile!
+  // 5. Walk/fly to clicked tile
   if (state.selectedAgentId) {
+    state.viewMode = "follow";
     await sendAgentCommand({
       agentId: state.selectedAgentId,
       action: "move_to",
@@ -2114,18 +2232,8 @@ async function handleCanvasClick(wx, wy) {
   }
 }
 
-function setViewMode(mode) {
-  state.viewMode = mode;
-  document.getElementById("singleCamModeBtn").classList.toggle("active", mode === "single");
-  document.getElementById("quadCamModeBtn").classList.toggle("active", mode === "quad");
-  document.getElementById("freePanModeBtn").classList.toggle("active", mode === "free");
-
-  document.getElementById("singleViewportContainer").classList.toggle("hidden", mode === "quad");
-  document.getElementById("quadViewportContainer").classList.toggle("hidden", mode !== "quad");
-}
-
 function setZoom(newZoom) {
-  state.zoom = Math.max(0.4, Math.min(3.5, newZoom));
+  state.zoom = Math.max(0.45, Math.min(3.5, newZoom));
   document.getElementById("zoomLabel").textContent = `${Math.round(state.zoom * 100)}%`;
 }
 
@@ -2137,9 +2245,11 @@ async function sendAgentCommand(payload) {
   });
   const data = await res.json();
   if (data.state) {
+    if (data.state.floorItems) rebuildFloorItemsSpatial(data.state.floorItems);
     state.live = data.state;
     renderPlayerHud(false);
     renderInspector(false);
+    renderEquipWindow(false);
     renderChatFeed(false);
   }
   return data;
@@ -2147,11 +2257,12 @@ async function sendAgentCommand(payload) {
 
 async function sendSay() {
   const input = document.getElementById("directSayInput");
-  const text = input.value.trim();
-  if (!text || !state.selectedAgentId) return;
+  const prefix = document.getElementById("chatChannelPrefix").value || "";
+  const raw = input.value.trim();
+  if (!raw || !state.selectedAgentId) return;
   input.value = "";
+  const text = raw.startsWith(";") || raw.startsWith(":") ? raw : `${prefix}${raw}`;
   const res = await sendAgentCommand({ agentId: state.selectedAgentId, action: "say", text });
-  // Immediately trigger OpenAI API reply from the closest AI crew member!
   if (res.queuedAiReplies && res.queuedAiReplies.length > 0) {
     runBrowserDirectLlmStep(res.queuedAiReplies[0]);
   } else {
@@ -2217,14 +2328,13 @@ async function saveApiConfig() {
     updateTopTelemetry();
   }
   document.getElementById("apiModal").classList.add("hidden");
-  // Immediately fire first OpenAI API call!
   runBrowserDirectLlmStep(null);
 }
 
 async function testApiConfig() {
   const resBox = document.getElementById("apiTestResult");
   resBox.classList.remove("hidden", "ok", "err");
-  resBox.textContent = "⏳ Отправка реального запроса к модели OpenAI API напрямую из браузера...";
+  resBox.textContent = "⏳ Отправка реального запроса к модели OpenAI API...";
 
   const payload = gatherApiForm();
   await fetch("/api/config", {
@@ -2239,7 +2349,6 @@ async function testApiConfig() {
     return;
   }
 
-  // Execute live test directly from the user's browser AND apply a real agent decision!
   const stepResult = await runBrowserDirectLlmStep(state.selectedAgentId);
   if (stepResult && stepResult.ok) {
     resBox.classList.add("ok");
@@ -2266,6 +2375,7 @@ async function joinAsCustomPlayer() {
   });
   const data = await res.json();
   if (data.ok) {
+    if (data.state.floorItems) rebuildFloorItemsSpatial(data.state.floorItems);
     state.live = data.state;
     state.selectedAgentId = data.agentId;
     state.previousPlayAgentId = data.agentId;

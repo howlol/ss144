@@ -36,6 +36,7 @@ connected_clients: Set[WebSocket] = set()
 async def physics_and_broadcast_loop() -> None:
     last_time = time.perf_counter()
     last_broadcast = 0.0
+    last_floor_ver = -1
     while True:
         now = time.perf_counter()
         dt = min(0.2, now - last_time)
@@ -47,9 +48,11 @@ async def physics_and_broadcast_loop() -> None:
         # Broadcast live delta at 12 Hz for smooth 60 FPS client interpolation
         if connected_clients and (now - last_broadcast) >= 0.08:
             last_broadcast = now
+            inc_floor = runtime.floor_items_version != last_floor_ver
+            last_floor_ver = runtime.floor_items_version
             payload = {
                 "type": "state",
-                "state": runtime.get_live_state_delta(),
+                "state": runtime.get_live_state_delta(include_floor_items=inc_floor),
                 "llm": orchestrator.get_public_config(),
                 "apiLogs": orchestrator.api_logs[-15:],
                 "priorityQueue": orchestrator.priority_agent_queue[:3],
@@ -372,6 +375,12 @@ async def command_agent(payload: Dict[str, Any]):
 
     elif action == "drop_item":
         runtime.drop_active_item(agent_id)
+
+    elif action == "throw_item":
+        tx = payload.get("x")
+        ty = payload.get("y")
+        msg = runtime.throw_active_item(agent_id, tx, ty)
+        extra["message"] = msg
 
     elif action == "pickup_item":
         uid = int(payload.get("uid", 0))

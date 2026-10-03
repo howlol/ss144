@@ -470,6 +470,8 @@ class SS14StationRuntime:
             self.tile_types[(int(tx), int(ty))] = tname
 
         for w in self.map_data.get("walls", []):
+            if "Wallmount" in w.get("proto", ""):
+                continue
             tx, ty = math.floor(w["x"]), math.floor(w["y"])
             self.solid_walls.add((tx, ty))
 
@@ -487,8 +489,15 @@ class SS14StationRuntime:
         self.cameras = list(self.map_data.get("cameras", []))
         self.beacons = list(self.map_data.get("beacons", []))
         self.spawn_points = list(self.map_data.get("spawnPoints", []))
-        self.objects = [dict(o) for o in self.map_data.get("objects", [])]
+
+        # Separate real map items (category == "item", 675 items on tables/floors in saltern.yml)
+        # from static furniture/machines so every map item is pickable & interactive!
+        all_map_objs = [dict(o) for o in self.map_data.get("objects", [])]
+        self._initial_map_items = [o for o in all_map_objs if o.get("category") == "item"]
+        self.objects = [o for o in all_map_objs if o.get("category") != "item"]
+        self.map_data["objects"] = self.objects
         self.objects_by_uid = {int(o["uid"]): o for o in self.objects}
+        self.floor_items_version: int = 1
 
     def get_item_info(self, item_id: Optional[str]) -> Dict[str, Any]:
         if not item_id:
@@ -497,6 +506,16 @@ class SS14StationRuntime:
             info = dict(self.item_catalog[item_id])
             info["id"] = item_id
             return info
+        proto_sprites = self.sprite_manifest.get("prototypes", {})
+        if item_id in proto_sprites:
+            p = proto_sprites[item_id]
+            return {
+                "id": item_id,
+                "name": p.get("name") or item_id,
+                "url": p.get("url") or "/assets/textures/Objects/Devices/pda.rsi/pda.png",
+                "type": "item",
+                "damage": 8,
+            }
         return {
             "id": item_id,
             "name": item_id,
@@ -504,22 +523,38 @@ class SS14StationRuntime:
             "type": "misc",
         }
 
-    def spawn_floor_item(self, item_id: str, x: float, y: float) -> FloorItem:
+    def spawn_floor_item(self, item_id: str, x: float, y: float, custom_name: Optional[str] = None) -> FloorItem:
         info = self.get_item_info(item_id)
         self._next_entity_uid += 1
         fitem = FloorItem(
             uid=self._next_entity_uid,
             item_id=item_id,
-            name=info.get("name", item_id),
+            name=custom_name or info.get("name", item_id),
             x=round(x, 2),
             y=round(y, 2),
             sprite_url=info.get("url", ""),
         )
         self.floor_items[fitem.uid] = fitem
+        self.floor_items_version += 1
         return fitem
 
     def _spawn_initial_floor_items(self) -> None:
         self.floor_items.clear()
+        # 1. Spawn all 675 authentic items from saltern.yml!
+        for mo in getattr(self, "_initial_map_items", []):
+            proto = mo["proto"]
+            info = self.get_item_info(proto)
+            uid = int(mo["uid"])
+            self.floor_items[uid] = FloorItem(
+                uid=uid,
+                item_id=proto,
+                name=mo.get("name") or info.get("name", proto),
+                x=round(float(mo["x"]), 2),
+                y=round(float(mo["y"]), 2),
+                sprite_url=info.get("url", ""),
+            )
+
+        # 2. Spawn key high-value department gear
         placements = [
             ("NukeDisk", 8.5, 25.5),       # Captain's Quarters
             ("Disabler", -12.5, 19.5),     # Armory
@@ -548,6 +583,7 @@ class SS14StationRuntime:
         ]
         for item_id, px, py in placements:
             self.spawn_floor_item(item_id, px, py)
+        self.floor_items_version += 1
 
     def add_visual_effect(
         self,
@@ -1063,8 +1099,48 @@ class SS14StationRuntime:
             agent.inventory.append(fitem.item_id)
 
         self.floor_items.pop(int(floor_uid), None)
-        agent.current_task = f"Поднял(а) с пола {fitem.name}"
+        self.floor_items_version += 1
+        agent.current_task = f"Поднял(а) {fitem.name}"
         return True
+
+    def throw_active_item(self, agent_id: str, target_x: Optional[float] = None, target_y: Optional[float] = None) -> str:
+        agent = self.agents.get(agent_id)
+        if not agent or not agent.held_item:
+            return "Нечего бросать"
+        item_id = agent.held_item
+        info = self.get_item_info(item_id)
+        agent.held_item = None
+
+        if target_x is None or target_y is None:
+            offsets = {"north": (0, 3.5), "south": (0, -3.5), "east": (3.5, 0), "west": (-3.5, 0)}
+            dx, dy = offsets.get(agent.direction, (0, -3.5))
+            tx_f, ty_f = agent.x + dx, agent.y + dy
+        else:
+            tx_f, ty_f = float(target_x), float(target_y)
+
+        # Raycast along throw trajectory so it stops at walls or hits a person
+        steps = 10
+        land_x, land_y = agent.x, agent.y
+        for s in range(1, steps + 1):
+            t = s / steps
+            cx = agent.x + (tx_f - agent.x) * t
+            cy = agent.y + (ty_f - agent.y) * t
+            if not self._is_tile_passable(math.floor(cx), math.floor(cy), ["AllAccess"]):
+                break
+            land_x, land_y = cx, cy
+            for other in self.agents.values():
+                if other.id != agent.id and not other.is_ghost and math.hypot(other.x - cx, other.y - cy) < 0.7:
+                    dmg = float(info.get("damage", 6))
+                    other.health = max(0.0, other.health - dmg)
+                    if item_id in ("Banana", "Soap") or info.get("stun", 0) > 0:
+                        other.stunned_until = time.time() + 3.0
+                    self.command_agent_emote(agent.id, f"метко бросает «{info['name']}» прямо в {other.name} (-{int(dmg)} HP)!")
+                    break
+
+        self.add_visual_effect("beam", agent.x, agent.y, land_x, land_y, "#94a3b8", 0.35)
+        fitem = self.spawn_floor_item(item_id, land_x, land_y)
+        agent.current_task = f"Бросил(а) {fitem.name}"
+        return agent.current_task
 
     def equip_from_inventory(self, agent_id: str, item_index: int) -> bool:
         agent = self.agents.get(agent_id)
@@ -1667,7 +1743,7 @@ class SS14StationRuntime:
 
         return {"ok": False, "message": "Рядом нет объектов для взаимодействия"}
 
-    def get_live_state_delta(self) -> Dict[str, Any]:
+    def get_live_state_delta(self, include_floor_items: bool = True) -> Dict[str, Any]:
         now = time.time()
         agents_payload = []
         for ag in self.agents.values():
@@ -1722,7 +1798,7 @@ class SS14StationRuntime:
         open_door_uids = [uid for uid, d in self.doors_by_uid.items() if d.get("open")]
         bolted_door_uids = [uid for uid, d in self.doors_by_uid.items() if d.get("bolted")]
 
-        return {
+        res: Dict[str, Any] = {
             "roundId": self.round_id,
             "roundClock": self.get_round_clock(),
             "alertLevel": self.alert_level,
@@ -1730,20 +1806,10 @@ class SS14StationRuntime:
             "atmosStatus": self.atmos_status,
             "cargoBalance": self.cargo_balance,
             "csharpBridgeOnline": self.csharp_bridge_online,
+            "floorItemsVersion": self.floor_items_version,
             "agents": agents_payload,
             "openDoorUids": open_door_uids,
             "boltedDoorUids": bolted_door_uids,
-            "floorItems": [
-                {
-                    "uid": fi.uid,
-                    "itemId": fi.item_id,
-                    "name": fi.name,
-                    "x": fi.x,
-                    "y": fi.y,
-                    "url": fi.sprite_url,
-                }
-                for fi in self.floor_items.values()
-            ],
             "effects": [
                 {
                     "id": ef.id,
@@ -1774,3 +1840,16 @@ class SS14StationRuntime:
                 for c in self.chat_log[-50:]
             ],
         }
+        if include_floor_items:
+            res["floorItems"] = [
+                {
+                    "uid": fi.uid,
+                    "itemId": fi.item_id,
+                    "name": fi.name,
+                    "x": fi.x,
+                    "y": fi.y,
+                    "url": fi.sprite_url,
+                }
+                for fi in self.floor_items.values()
+            ]
+        return res
