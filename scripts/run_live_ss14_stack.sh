@@ -139,23 +139,18 @@ EOF
 
 # 4. Copy fast Saltern server config & apply latest Content.Server.dll patch if available
 cp "$REPO_ROOT/ss14_mod/Resources/ConfigPresets/Build/ai_station.toml" "$NATIVE_ROOT/ss14/bin/Content.Server/server_config.toml"
-if git ls-remote --tags https://github.com/howlol/ss144.git refs/tags/ss14-server-patch | grep -q "ss14-server-patch"; then
-  rm -rf /tmp/ss14-patch
-  mkdir -p /tmp/ss14-patch
-  git init /tmp/ss14-patch >/dev/null 2>&1
-  git -C /tmp/ss14-patch fetch --depth 1 https://github.com/howlol/ss144.git refs/tags/ss14-server-patch >/dev/null 2>&1
-  git -C /tmp/ss14-patch checkout FETCH_HEAD >/dev/null 2>&1
-  cp /tmp/ss14-patch/Content.Server.dll "$NATIVE_ROOT/ss14/bin/Content.Server/Content.Server.dll"
-  rm -rf /tmp/ss14-patch
+if [ ! -f "$NATIVE_ROOT/ss14/.patched_v2" ]; then
+  if git ls-remote --tags https://github.com/howlol/ss144.git refs/tags/ss14-server-patch | grep -q "ss14-server-patch"; then
+    rm -rf /tmp/ss14-patch
+    mkdir -p /tmp/ss14-patch
+    git init /tmp/ss14-patch >/dev/null 2>&1
+    git -C /tmp/ss14-patch fetch --depth 1 https://github.com/howlol/ss144.git refs/tags/ss14-server-patch >/dev/null 2>&1
+    git -C /tmp/ss14-patch checkout FETCH_HEAD >/dev/null 2>&1
+    cp /tmp/ss14-patch/Content.Server.dll "$NATIVE_ROOT/ss14/bin/Content.Server/Content.Server.dll"
+    rm -rf /tmp/ss14-patch
+    touch "$NATIVE_ROOT/ss14/.patched_v2"
+  fi
 fi
-
-# 5. Clean up any old instances
-pkill -9 -x Content.Client 2>/dev/null || true
-pkill -9 -x Content.Server 2>/dev/null || true
-pkill -9 -x x11vnc 2>/dev/null || true
-pkill -9 -x openbox 2>/dev/null || true
-pkill -9 -x Xvfb 2>/dev/null || true
-sleep 1
 
 export DISPLAY=:99
 export LIBGL_ALWAYS_SOFTWARE=1
@@ -163,37 +158,56 @@ export ALSOFT_DRIVERS=null
 export DOTNET_ROOT="$NATIVE_ROOT/dotnet"
 export PATH="$NATIVE_ROOT/dotnet:$PATH"
 
-echo "[2/5] Starting Xvfb :99 (1280x720x24 OpenGL) + Openbox + x11vnc (port 5900)..."
-Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset >/tmp/xvfb.log 2>&1 &
-sleep 1
-openbox >/tmp/openbox.log 2>&1 &
-x11vnc -display :99 -nopw -forever -shared -rfbport 5900 >/tmp/x11vnc.log 2>&1 &
-
-echo "[3/5] Starting C# Content.Server + AIStationBridgeSystem in background..."
+# Launch Xvfb + x11vnc + Content.Server + Content.Client AFTER port 8000 is listening
+# so 0.0.0.0:8000 is the primary preview port registered by the host environment.
 (
-  cd "$NATIVE_ROOT/ss14"
-  "$NATIVE_ROOT/ss14/bin/Content.Server/Content.Server" >/tmp/ss14_server.log 2>&1 &
-  for i in $(seq 1 60); do
-    if curl -s http://127.0.0.1:1212/status >/dev/null 2>&1; then
-      echo "[Content.Server] Ready on UDP/HTTP :1212 and Bridge :12120!"
+  for _ in $(seq 1 30); do
+    if curl -s http://127.0.0.1:8000/api/native_status >/dev/null 2>&1; then
       break
     fi
+    sleep 0.5
+  done
+  sleep 2
+
+  if ! pgrep -x Xvfb >/dev/null 2>&1; then
+    echo "[2/5] Starting Xvfb :99 (1280x720x24 OpenGL) + Openbox..."
+    Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset >/tmp/xvfb.log 2>&1 &
     sleep 1
-  done
-  echo "[4/5] Launching Native C# OpenGL Content.Client connected to 127.0.0.1:1212..."
-  while true; do
-    "$NATIVE_ROOT/ss14/bin/Content.Client/Content.Client" \
-      --connect \
-      --connect-address 127.0.0.1:1212 \
-      --username Player \
-      --cvar display.width=1280 \
-      --cvar display.height=720 \
-      --cvar display.windowmode=1 \
-      --cvar display.max_fps=30 \
-      --cvar display.vsync=false \
-      >/tmp/ss14_client.log 2>&1 || true
-    sleep 2
-  done
+    openbox >/tmp/openbox.log 2>&1 &
+  fi
+
+  if ! pgrep -f "x11vnc -display :99 -localhost" >/dev/null 2>&1; then
+    pkill -9 -x x11vnc 2>/dev/null || true
+    sleep 0.3
+    x11vnc -display :99 -localhost -nopw -forever -shared -rfbport 5900 >/tmp/x11vnc.log 2>&1 &
+  fi
+
+  if ! pgrep -x Content.Server >/dev/null 2>&1; then
+    echo "[3/5] Starting C# Content.Server + AIStationBridgeSystem in background..."
+    cd "$NATIVE_ROOT/ss14"
+    "$NATIVE_ROOT/ss14/bin/Content.Server/Content.Server" >/tmp/ss14_server.log 2>&1 &
+    for i in $(seq 1 60); do
+      if curl -s http://127.0.0.1:1212/status >/dev/null 2>&1; then
+        echo "[Content.Server] Ready on UDP/HTTP 127.0.0.1:1212 and Bridge 127.0.0.1:12120!"
+        break
+      fi
+      sleep 1
+    done
+    echo "[4/5] Launching Native C# OpenGL Content.Client connected to 127.0.0.1:1212..."
+    while true; do
+      "$NATIVE_ROOT/ss14/bin/Content.Client/Content.Client" \
+        --connect \
+        --connect-address 127.0.0.1:1212 \
+        --username Player \
+        --cvar display.width=1280 \
+        --cvar display.height=720 \
+        --cvar display.windowmode=1 \
+        --cvar display.max_fps=30 \
+        --cvar display.vsync=false \
+        >/tmp/ss14_client.log 2>&1 || true
+      sleep 2
+    done
+  fi
 ) &
 
 echo "[5/5] Starting Web + Websockify Proxy Server on 0.0.0.0:8000..."
