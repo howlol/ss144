@@ -44,21 +44,21 @@ namespace Content.Server.AIStation;
 /// </summary>
 public sealed class AiStationBridgeSystem : EntitySystem
 {
-    [Dependency] private readonly IGameTiming _timing = default!;
-    [Dependency] private readonly IPrototypeManager _protoMan = default!;
-    [Dependency] private readonly ChatSystem _chat = default!;
-    [Dependency] private readonly SharedCombatModeSystem _combatMode = default!;
-    [Dependency] private readonly DoorSystem _door = default!;
-    [Dependency] private readonly HandsSystem _hands = default!;
-    [Dependency] private readonly SharedInteractionSystem _interaction = default!;
-    [Dependency] private readonly MindSystem _mind = default!;
-    [Dependency] private readonly MobStateSystem _mobState = default!;
-    [Dependency] private readonly DamageableSystem _damageable = default!;
-    [Dependency] private readonly NPCSteeringSystem _steering = default!;
-    [Dependency] private readonly RoleSystem _roles = default!;
-    [Dependency] private readonly ServerGameTicker _ticker = default!;
-    [Dependency] private readonly SharedTransformSystem _xform = default!;
-    [Dependency] private readonly StationSpawningSystem _stationSpawning = default!;
+    [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private IPrototypeManager _protoMan = default!;
+    [Dependency] private ChatSystem _chat = default!;
+    [Dependency] private SharedCombatModeSystem _combatMode = default!;
+    [Dependency] private DoorSystem _door = default!;
+    [Dependency] private HandsSystem _hands = default!;
+    [Dependency] private SharedInteractionSystem _interaction = default!;
+    [Dependency] private MindSystem _mind = default!;
+    [Dependency] private MobStateSystem _mobState = default!;
+    [Dependency] private DamageableSystem _damageable = default!;
+    [Dependency] private NPCSteeringSystem _steering = default!;
+    [Dependency] private RoleSystem _roles = default!;
+    [Dependency] private ServerGameTicker _ticker = default!;
+    [Dependency] private SharedTransformSystem _xform = default!;
+    [Dependency] private StationSpawningSystem _stationSpawning = default!;
 
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -72,7 +72,7 @@ public sealed class AiStationBridgeSystem : EntitySystem
     {
         base.Initialize();
 
-        SubscribeLocalEvent<EntitySpokeEvent>(OnEntitySpoke);
+        SubscribeLocalEvent<AiAgentComponent, EntitySpokeEvent>(OnEntitySpoke);
 
         StartHttpBridge();
     }
@@ -210,7 +210,7 @@ public sealed class AiStationBridgeSystem : EntitySystem
         res.Close();
     }
 
-    private void OnEntitySpoke(EntityUid uid, Component comp, EntitySpokeEvent args)
+    private void OnEntitySpoke(EntityUid uid, AiAgentComponent comp, EntitySpokeEvent args)
     {
         var coords = _xform.GetMoverCoordinates(uid);
         _chatHistory.Enqueue(new ChatRecord
@@ -318,9 +318,9 @@ public sealed class AiStationBridgeSystem : EntitySystem
                 break;
 
             case "use_hand":
-                if (TryFindAgentEntity(cmd.AgentId, out var useUid, out _))
+                if (TryFindAgentEntity(cmd.AgentId, out var useUid, out _) && _hands.TryGetActiveItem(useUid, out var activeItem))
                 {
-                    _interaction.UseInHandInteraction(useUid);
+                    _interaction.UseInHandInteraction(useUid, activeItem.Value);
                 }
                 break;
 

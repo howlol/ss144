@@ -1312,6 +1312,7 @@ function renderCrewRoster(force = false) {
     div.onclick = () => {
       state.selectedAgentId = ag.id;
       state.viewMode = "follow";
+      sendAgentCommand({ agentId: ag.id, action: "toggle_browser_control", enabled: true });
       renderCrewRoster(true);
       renderInspector(true);
       renderPlayerHud(true);
@@ -1670,6 +1671,13 @@ function openContextMenu(clientX, clientY, wx, wy) {
         }
         runBrowserDirectLlmStep(clickedAgent.id);
       });
+      addVerb(`🔗 Тянуть / Отпустить: ${clickedAgent.name} [H]`, () => {
+        sendAgentCommand({
+          agentId: state.selectedAgentId,
+          action: "toggle_pull",
+          targetAgentId: clickedAgent.id,
+        });
+      });
     }
     addVerb(`🎮 Вселиться и играть за ${clickedAgent.name}`, () => {
       state.selectedAgentId = clickedAgent.id;
@@ -1770,6 +1778,14 @@ function isClientTilePassable(tx, ty, isGhost) {
   const key = `${tx},${ty}`;
   if (!state.spatial.tiles.has(key)) return false;
   if (state.spatial.walls.has(key) || state.spatial.windows.has(key)) return false;
+  const door = state.spatial.doorsByTile.get(key);
+  if (door) {
+    const bolted = (state.live?.boltedDoorUids || []).includes(door.uid);
+    if (bolted) return false;
+    if (state.live && state.live.openDoorUids && !state.live.openDoorUids.includes(door.uid)) {
+      state.live.openDoorUids.push(door.uid);
+    }
+  }
   return true;
 }
 
@@ -2075,6 +2091,8 @@ function bindUIEvents() {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "drop_item" });
     } else if (e.code === "KeyF") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "throw_item" });
+    } else if (e.code === "KeyH") {
+      sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_pull" });
     } else if (e.code === "KeyC") {
       sendAgentCommand({ agentId: state.selectedAgentId, action: "toggle_combat" });
     } else if (e.code === "KeyE") {
@@ -2194,28 +2212,34 @@ function bindUIEvents() {
 async function handleCanvasClick(wx, wy) {
   const curAg = state.live?.agents?.find((a) => a.id === state.selectedAgentId);
 
-  // 1. Check if clicked another character
-  const clickedAgent = (state.live?.agents || []).find((a) => Math.hypot(a.x - wx, a.y - wy) < 0.78);
-  if (clickedAgent) {
-    if (curAg && clickedAgent.id !== curAg.id && (curAg.combatMode || curAg.isGhost)) {
-      const res = await sendAgentCommand({
-        agentId: curAg.id,
-        action: "interact_agent",
-        targetAgentId: clickedAgent.id,
-      });
-      if (res.action === "possessed" && res.new_agent_id) {
-        state.selectedAgentId = res.new_agent_id;
-        setGameMode("play");
-      } else {
-        runBrowserDirectLlmStep(clickedAgent.id);
-      }
-      return;
+  // 0. In Combat Mode (or holding a ranged gun in Combat Mode), left-clicking anywhere fires/swings toward (wx, wy)!
+  if (curAg && curAg.combatMode && !curAg.isGhost) {
+    const res = await sendAgentCommand({
+      agentId: curAg.id,
+      action: "fire_at",
+      x: wx,
+      y: wy,
+    });
+    if (res.hitAgentId) {
+      runBrowserDirectLlmStep(res.hitAgentId);
     }
-    state.selectedAgentId = clickedAgent.id;
-    renderCrewRoster(true);
-    renderInspector(true);
-    renderPlayerHud(true);
-    renderEquipWindow(true);
+    return;
+  }
+
+  // 1. Check if clicked another character -> interact with them (heal, cuff, scan, or possess if Ghost)
+  const clickedAgent = (state.live?.agents || []).find((a) => Math.hypot(a.x - wx, a.y - wy) < 0.78);
+  if (clickedAgent && curAg && clickedAgent.id !== curAg.id) {
+    const res = await sendAgentCommand({
+      agentId: curAg.id,
+      action: "interact_agent",
+      targetAgentId: clickedAgent.id,
+    });
+    if (res.action === "possessed" && res.new_agent_id) {
+      state.selectedAgentId = res.new_agent_id;
+      setGameMode("play");
+    } else {
+      runBrowserDirectLlmStep(clickedAgent.id);
+    }
     return;
   }
 

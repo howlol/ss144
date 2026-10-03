@@ -97,6 +97,7 @@ class StationAgent:
     secret_objective: str = ""
     is_antagonist: bool = False
     browser_controlled: bool = False
+    pulling_id: Optional[str] = None
     current_room: str = "Hallway"
     current_task: str = "Начинает смену на станции NSS Saltern"
     last_thought: str = "Осматриваюсь в отсеке и проверяю снаряжение."
@@ -830,6 +831,7 @@ class SS14StationRuntime:
                 personality=cfg["personality"],
                 secret_objective=cfg["secret_objective"],
                 is_antagonist=cfg["is_antagonist"],
+                browser_controlled=(idx == 0),
                 current_room=room,
                 current_task=f"Дежурство в отсеке {room}",
                 access=list(cfg["access"]),
@@ -1380,6 +1382,108 @@ class SS14StationRuntime:
 
         return {"ok": True, "message": f"Осмотрел {target.name}"}
 
+    def toggle_pull(self, actor_id: str, target_agent_id: Optional[str] = None) -> Dict[str, Any]:
+        actor = self.agents.get(actor_id)
+        if not actor or actor.is_ghost:
+            return {"ok": False, "message": "Невозможно тянуть"}
+        if actor.pulling_id and (not target_agent_id or actor.pulling_id == target_agent_id):
+            old = self.agents.get(actor.pulling_id)
+            actor.pulling_id = None
+            return {"ok": True, "message": f"Отпустил(а) {old.name if old else 'объект'}"}
+        # Find nearest agent within 2.2 tiles if target_agent_id not specified
+        target = self.agents.get(target_agent_id) if target_agent_id else None
+        if not target:
+            best_d = 2.2
+            for other in self.agents.values():
+                if other.id == actor.id or other.is_ghost:
+                    continue
+                d = math.hypot(other.x - actor.x, other.y - actor.y)
+                if d < best_d:
+                    best_d = d
+                    target = other
+        if not target or math.hypot(target.x - actor.x, target.y - actor.y) > 2.5:
+            return {"ok": False, "message": "Рядом никого нет, чтобы схватить и тянуть"}
+        actor.pulling_id = target.id
+        self.command_agent_emote(actor.id, f"хватает и тянет за собой {target.name}")
+        return {"ok": True, "message": f"Тянет за собой {target.name}"}
+
+    def fire_or_swing_at(self, actor_id: str, target_x: float, target_y: float) -> Dict[str, Any]:
+        """Real SS14 directional combat: shoots a raycast laser/bullet or swings melee toward (target_x, target_y)."""
+        actor = self.agents.get(actor_id)
+        if not actor or actor.is_ghost or actor.status == "Dead":
+            return {"ok": False, "message": "Невозможно атаковать"}
+
+        dx = target_x - actor.x
+        dy = target_y - actor.y
+        dist = math.hypot(dx, dy)
+        if abs(dx) > abs(dy):
+            actor.direction = "east" if dx > 0 else "west"
+        elif abs(dy) > 0.01:
+            actor.direction = "north" if dy > 0 else "south"
+
+        item_id = actor.held_item
+        info = self.get_item_info(item_id)
+        itype = info.get("type", "")
+
+        # 1. Ranged weapon: raycast up to 14 tiles
+        if itype == "weapon_ranged":
+            max_range = 14.0
+            nx = dx / max(0.01, dist)
+            ny = dy / max(0.01, dist)
+            end_x, end_y = actor.x, actor.y
+            hit_agent: Optional[StationAgent] = None
+
+            steps = int(max_range * 4)
+            for s in range(1, steps + 1):
+                cx = actor.x + nx * (s * 0.25)
+                cy = actor.y + ny * (s * 0.25)
+                tx, ty = math.floor(cx), math.floor(cy)
+                if (tx, ty) in self.solid_walls:
+                    end_x, end_y = cx, cy
+                    break
+                door = self.doors_by_tile.get((tx, ty))
+                if door and not door.get("open"):
+                    end_x, end_y = cx, cy
+                    break
+                end_x, end_y = cx, cy
+                for other in self.agents.values():
+                    if other.id != actor.id and not other.is_ghost and math.hypot(other.x - cx, other.y - cy) < 0.65:
+                        hit_agent = other
+                        break
+                if hit_agent:
+                    break
+
+            beam_col = info.get("beamColor", "#ef4444")
+            self.add_visual_effect("beam", actor.x, actor.y, end_x, end_y, beam_col, 0.45)
+
+            if hit_agent:
+                dmg = float(info.get("damage", 20))
+                stun_sec = float(info.get("stun", 0.0))
+                hit_agent.health = max(0.0, hit_agent.health - dmg)
+                if stun_sec > 0:
+                    hit_agent.stunned_until = time.time() + stun_sec
+                    hit_agent.path.clear()
+                if hit_agent.health <= 0:
+                    hit_agent.status = "Dead"
+                    hit_agent.path.clear()
+                elif hit_agent.health <= 25:
+                    hit_agent.status = "Critical"
+                self.command_agent_emote(actor.id, f"стреляет из «{info['name']}» и попадает в {hit_agent.name} (-{int(dmg)} HP)!")
+                hit_agent.subconscious_prompt = f"В меня только что выстрелил {actor.name} из {info['name']}! Надо звать СБ или защищаться!"
+                return {"ok": True, "hitAgentId": hit_agent.id, "message": f"Попадание в {hit_agent.name} (-{int(dmg)} HP)!"}
+            return {"ok": True, "message": f"Выстрел из «{info['name']}»"}
+
+        # 2. Melee swing within 2.4 tiles
+        swing_x = actor.x + (dx / max(0.01, dist)) * min(1.2, dist)
+        swing_y = actor.y + (dy / max(0.01, dist)) * min(1.2, dist)
+        self.add_visual_effect("slash", actor.x, actor.y, swing_x, swing_y, "#ef4444", 0.35)
+
+        for other in self.agents.values():
+            if other.id != actor.id and not other.is_ghost and math.hypot(other.x - swing_x, other.y - swing_y) < 1.15:
+                return self.attack_or_interact_target_agent(actor.id, other.id)
+
+        return {"ok": True, "message": "Взмах оружием/кулаком"}
+
     def toggle_door(self, door_uid: int, actor_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         door = self.doors_by_uid.get(int(door_uid))
         if not door:
@@ -1648,6 +1752,19 @@ class SS14StationRuntime:
                     agent.x += (dx / dist) * step
                     agent.y += (dy / dist) * step
 
+            if agent.pulling_id:
+                pulled = self.agents.get(agent.pulling_id)
+                if not pulled or pulled.is_ghost or math.hypot(pulled.x - agent.x, pulled.y - agent.y) > 4.5:
+                    agent.pulling_id = None
+                else:
+                    pdx = agent.x - pulled.x
+                    pdy = agent.y - pulled.y
+                    pdist = math.hypot(pdx, pdy)
+                    if pdist > 0.9:
+                        pulled.x += (pdx / pdist) * (pdist - 0.85)
+                        pulled.y += (pdy / pdist) * (pdist - 0.85)
+                        pulled.current_room = agent.current_room
+
     def _check_tile_hazards(self, agent: StationAgent) -> None:
         if agent.is_ghost or time.time() < agent.stunned_until:
             return
@@ -1854,6 +1971,7 @@ class SS14StationRuntime:
                 "secretObjective": ag.secret_objective,
                 "isAntagonist": ag.is_antagonist,
                 "browserControlled": ag.browser_controlled,
+                "pullingId": ag.pulling_id,
                 "currentRoom": ag.current_room,
                 "currentTask": ag.current_task,
                 "lastThought": ag.last_thought,

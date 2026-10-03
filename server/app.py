@@ -397,6 +397,21 @@ async def command_agent(payload: Dict[str, Any]):
     elif action == "toggle_combat":
         agent.combat_mode = not agent.combat_mode
 
+    elif action == "fire_at":
+        tx = float(payload.get("x", agent.x))
+        ty = float(payload.get("y", agent.y))
+        res = runtime.fire_or_swing_at(agent_id, tx, ty)
+        extra.update(res)
+        hit_id = res.get("hitAgentId")
+        if hit_id and hit_id in runtime.agents:
+            h_ag = runtime.agents[hit_id]
+            orchestrator.prioritize_nearby_agents(h_ag.x, h_ag.y, exclude_id=agent.id)
+
+    elif action == "toggle_pull":
+        target_id = payload.get("targetAgentId")
+        res = runtime.toggle_pull(agent_id, target_id)
+        extra.update(res)
+
     elif action == "interact_agent":
         target_id = str(payload.get("targetAgentId") or "")
         res = runtime.attack_or_interact_target_agent(agent_id, target_id)
@@ -417,7 +432,12 @@ async def command_agent(payload: Dict[str, Any]):
         bui_info = res.get("bui")
 
     elif action == "toggle_browser_control":
-        agent.browser_controlled = bool(payload.get("enabled", not agent.browser_controlled))
+        enabled = bool(payload.get("enabled", not agent.browser_controlled))
+        if enabled:
+            for other in runtime.agents.values():
+                if not other.is_ghost and other.id != agent.id:
+                    other.browser_controlled = False
+        agent.browser_controlled = enabled
 
     elif action == "force_llm_step":
         res = await orchestrator.query_openai_for_agent(agent)
@@ -578,6 +598,11 @@ async def websocket_endpoint(ws: WebSocket):
                 aid = str(msg.get("agentId") or "")
                 ag = runtime.agents.get(aid)
                 if ag:
+                    if not ag.browser_controlled:
+                        for other in runtime.agents.values():
+                            if not other.is_ghost and other.id != ag.id:
+                                other.browser_controlled = False
+                        ag.browser_controlled = True
                     nx = float(msg.get("x", ag.x))
                     ny = float(msg.get("y", ag.y))
                     direction = str(msg.get("direction") or ag.direction)
@@ -594,6 +619,15 @@ async def websocket_endpoint(ws: WebSocket):
                         ag.direction = direction
                         ag.current_room = runtime.nearest_room_name(ag.x, ag.y)
                         runtime._check_tile_hazards(ag)
+                        if ag.pulling_id:
+                            pulled = runtime.agents.get(ag.pulling_id)
+                            if pulled and not pulled.is_ghost:
+                                pdx, pdy = ag.x - pulled.x, ag.y - pulled.y
+                                pdist = (pdx ** 2 + pdy ** 2) ** 0.5
+                                if 0.85 < pdist < 4.5:
+                                    pulled.x += (pdx / pdist) * (pdist - 0.85)
+                                    pulled.y += (pdy / pdist) * (pdist - 0.85)
+                                    pulled.current_room = ag.current_room
     except WebSocketDisconnect:
         connected_clients.discard(ws)
     except Exception:
