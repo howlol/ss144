@@ -263,7 +263,7 @@
       "extra": {}
     },
     "ClosetL3VirologyFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetL3VirologyFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -584,7 +584,7 @@
       "extra": {}
     },
     "PottedPlantRandomPlastic": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Furniture/potted_plants.rsi/plant-25.png",
       "state": "red",
       "size": [
         32,
@@ -655,7 +655,7 @@
       }
     },
     "CrateFilledSpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Storage/Crates/engicrate_secure.rsi/closed.png",
       "state": "red",
       "size": [
         32,
@@ -782,7 +782,7 @@
       "extra": {}
     },
     "WardrobeChapelFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/WardrobeChapelFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -862,7 +862,7 @@
       "extra": {}
     },
     "ComputerResearchAndDevelopment": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerResearchAndDevelopment.png",
       "state": "computer",
       "size": [
         32,
@@ -1169,7 +1169,7 @@
       "extra": {}
     },
     "WardrobePrisonFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/WardrobePrisonFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -1229,7 +1229,7 @@
       "extra": {}
     },
     "LockerCaptainFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerCaptainFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -1347,7 +1347,7 @@
       "extra": {}
     },
     "VendingMachineSeeds": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/seeds.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/seeds.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -1470,7 +1470,7 @@
       "extra": {}
     },
     "LockerAtmosphericsFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerAtmosphericsFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -1525,7 +1525,7 @@
       "extra": {}
     },
     "SpawnMobCat": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/cat.png",
       "state": "green",
       "size": [
         32,
@@ -1563,7 +1563,7 @@
       }
     },
     "VendingMachineCigs": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/cigs.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/cigs.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -1604,7 +1604,7 @@
       "extra": {}
     },
     "ClosetSteelBase": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetSteelBase.png",
       "state": "generic",
       "size": [
         32,
@@ -1692,7 +1692,7 @@
       "extra": {}
     },
     "ClosetChefFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetChefFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -1703,7 +1703,7 @@
       "extra": {}
     },
     "LockerParamedicFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerParamedicFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -1747,7 +1747,7 @@
       "extra": {}
     },
     "VendingMachineHydrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/hydrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/hydrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -1805,7 +1805,7 @@
       "extra": {}
     },
     "VendingMachineEngiDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/engidrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/engidrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -1830,7 +1830,7 @@
       "extra": {}
     },
     "MaintenancePlantSpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Furniture/potted_plants.rsi/plant-15.png",
       "state": "red",
       "size": [
         32,
@@ -1841,7 +1841,7 @@
       "extra": {}
     },
     "VendingMachineDetDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/detdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/detdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -1855,7 +1855,7 @@
       }
     },
     "WardrobeWhite": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/WardrobeWhite.png",
       "state": "generic",
       "size": [
         32,
@@ -2191,7 +2191,7 @@
       "extra": {}
     },
     "ComputerId": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerId.png",
       "state": "computer",
       "size": [
         32,
@@ -2400,7 +2400,7 @@
       }
     },
     "LockerResearchDirectorFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerResearchDirectorFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -2695,7 +2695,7 @@
       "extra": {}
     },
     "WardrobeRoboticsFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/WardrobeRoboticsFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -2706,7 +2706,7 @@
       "extra": {}
     },
     "ComputerCriminalRecords": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerCriminalRecords.png",
       "state": "computer",
       "size": [
         32,
@@ -2945,7 +2945,7 @@
       "extra": {}
     },
     "VendingMachineSalvage": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/mining.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/mining.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -2984,7 +2984,7 @@
       "extra": {}
     },
     "SpawnMobMcGriff": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/mcgriff.png",
       "state": "green",
       "size": [
         32,
@@ -3006,7 +3006,7 @@
       "extra": {}
     },
     "SpawnMobSmile": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/sloth.png",
       "state": "green",
       "size": [
         32,
@@ -3031,7 +3031,7 @@
       }
     },
     "LockerSecurityFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerSecurityFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -3166,7 +3166,7 @@
       "extra": {}
     },
     "ClosetFireFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetFireFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -3193,7 +3193,7 @@
       }
     },
     "VendingMachineMediDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/medidrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/medidrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -3207,7 +3207,7 @@
       }
     },
     "LockerSalvageSpecialistFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerSalvageSpecialistFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -3240,7 +3240,7 @@
       "extra": {}
     },
     "SpawnMobMonkeyPunpun": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/monkey.png",
       "state": "green",
       "size": [
         32,
@@ -3556,7 +3556,7 @@
       "extra": {}
     },
     "LockerEvidence": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerEvidence.png",
       "state": "generic",
       "size": [
         32,
@@ -3567,7 +3567,7 @@
       "extra": {}
     },
     "VendingMachineSciDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/scidrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/scidrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -3592,7 +3592,7 @@
       "extra": {}
     },
     "SpawnMobMouse": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/mouse.png",
       "state": "green",
       "size": [
         32,
@@ -3603,7 +3603,7 @@
       "extra": {}
     },
     "VendingMachineGeneDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/genedrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/genedrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -3617,7 +3617,7 @@
       }
     },
     "AltarSpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Furniture/Tables/wood.rsi/full.png",
       "state": "red",
       "size": [
         32,
@@ -3672,7 +3672,7 @@
       "extra": {}
     },
     "VendingMachineSeedsUnlocked": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/seeds.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/seeds.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -3697,7 +3697,7 @@
       "extra": {}
     },
     "LockerScienceFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerScienceFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -3884,7 +3884,7 @@
       "extra": {}
     },
     "LockerMedicalFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerMedicalFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -3917,7 +3917,7 @@
       "extra": {}
     },
     "ComputerShuttleCargo": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerShuttleCargo.png",
       "state": "computer",
       "size": [
         32,
@@ -4023,7 +4023,7 @@
       "extra": {}
     },
     "ComputerStationRecords": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerStationRecords.png",
       "state": "computer",
       "size": [
         32,
@@ -4047,7 +4047,7 @@
       "extra": {}
     },
     "VendingMachineAtmosDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/atmosdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/atmosdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4061,7 +4061,7 @@
       }
     },
     "SpawnMobCrabAtmos": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/crab.png",
       "state": "green",
       "size": [
         32,
@@ -4249,7 +4249,7 @@
       "extra": {}
     },
     "VendingMachineChang": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/changs.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/changs.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4263,7 +4263,7 @@
       }
     },
     "ComputerRadar": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerRadar.png",
       "state": "computer",
       "size": [
         32,
@@ -4298,7 +4298,7 @@
       "extra": {}
     },
     "LockerElectricalSuppliesFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerElectricalSuppliesFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -4353,7 +4353,7 @@
       "extra": {}
     },
     "VendingMachineCargoDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/cargodrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/cargodrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4571,7 +4571,7 @@
       "extra": {}
     },
     "VendingMachineRoboDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/robodrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/robodrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4689,7 +4689,7 @@
       "extra": {}
     },
     "VendingMachineSustenance": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/sustenance.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/sustenance.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4703,7 +4703,7 @@
       }
     },
     "VendingMachineMedical": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/medical.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/medical.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4822,7 +4822,7 @@
       "extra": {}
     },
     "VendingMachineChemDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/chemdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/chemdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -4909,7 +4909,7 @@
       }
     },
     "VendingMachineJaniDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/janidrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/janidrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -5091,7 +5091,7 @@
       "extra": {}
     },
     "RandomVendingDrinks": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/cola.rsi/lit.png",
       "state": "red",
       "size": [
         32,
@@ -5250,7 +5250,7 @@
       "extra": {}
     },
     "VendingMachineCoffee": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/coffee.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/coffee.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -5363,7 +5363,7 @@
       "extra": {}
     },
     "CrateEmptySpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Storage/Crates/privatecrate_secure.rsi/closed.png",
       "state": "red",
       "size": [
         32,
@@ -5440,7 +5440,7 @@
       "extra": {}
     },
     "VendingMachineCuraDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/curadrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/curadrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -5542,7 +5542,7 @@
       "extra": {}
     },
     "RandomPainting": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Wallmounts/signs.rsi/monkey_painting.png",
       "state": "red",
       "size": [
         32,
@@ -5575,7 +5575,7 @@
       "extra": {}
     },
     "LockerQuarterMasterFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerQuarterMasterFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -5704,7 +5704,7 @@
       "extra": {}
     },
     "ComputerCrewMonitoring": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerCrewMonitoring.png",
       "state": "computer",
       "size": [
         32,
@@ -5750,7 +5750,7 @@
       "extra": {}
     },
     "VendingMachineVendomat": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/vendomat.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/vendomat.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -5831,7 +5831,7 @@
       "extra": {}
     },
     "ComputerTechnologyDiskTerminal": {
-      "url": "/assets/textures/Structures/Machines/tech_disk_printer.rsi/icon.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerTechnologyDiskTerminal.png",
       "state": "icon",
       "size": [
         32,
@@ -5842,7 +5842,7 @@
       "extra": {}
     },
     "VendingMachineEngivend": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/engivend.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/engivend.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -6019,7 +6019,7 @@
       "extra": {}
     },
     "LockerMedicineFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerMedicineFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -6151,7 +6151,7 @@
       "extra": {}
     },
     "VendingMachineChefDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/chefdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/chefdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -6353,7 +6353,7 @@
       }
     },
     "VendingMachineViroDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/virodrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/virodrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -6460,7 +6460,7 @@
       "extra": {}
     },
     "LockerEngineerFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerEngineerFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -6504,7 +6504,7 @@
       "extra": {}
     },
     "ClosetMaintenanceFilledRandom": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetMaintenanceFilledRandom.png",
       "state": "generic",
       "size": [
         32,
@@ -6599,7 +6599,7 @@
       "extra": {}
     },
     "VendingMachineSovietSoda": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/sovietsoda.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/sovietsoda.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -6693,7 +6693,7 @@
       "extra": {}
     },
     "VendingMachineCart": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/cart.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/cart.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -6718,7 +6718,7 @@
       "extra": {}
     },
     "ComputerAnalysisConsole": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerAnalysisConsole.png",
       "state": "computer",
       "size": [
         32,
@@ -6731,7 +6731,7 @@
       }
     },
     "ComputerSolarControl": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerSolarControl.png",
       "state": "computer",
       "size": [
         32,
@@ -6997,7 +6997,7 @@
       }
     },
     "LockerWeldingSuppliesFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerWeldingSuppliesFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -7008,7 +7008,7 @@
       "extra": {}
     },
     "LockerWardenFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerWardenFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -7249,7 +7249,7 @@
       "extra": {}
     },
     "ComputerSalvageExpedition": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerSalvageExpedition.png",
       "state": "computer",
       "size": [
         32,
@@ -7273,7 +7273,7 @@
       "extra": {}
     },
     "VendingMachineClothing": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/clothing.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/clothing.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -7331,7 +7331,7 @@
       "extra": {}
     },
     "LockerFreezer": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerFreezer.png",
       "state": "generic",
       "size": [
         32,
@@ -7468,7 +7468,7 @@
       "extra": {}
     },
     "ComputerAlert": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerAlert.png",
       "state": "computer",
       "size": [
         32,
@@ -7481,7 +7481,7 @@
       }
     },
     "ClosetJanitorFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetJanitorFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -7588,7 +7588,7 @@
       "extra": {}
     },
     "VendingMachineSecDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/secdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/secdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -7602,7 +7602,7 @@
       }
     },
     "SpawnMobCorgi": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/corgi.png",
       "state": "green",
       "size": [
         32,
@@ -7673,7 +7673,7 @@
       "extra": {}
     },
     "LockerHeadOfPersonnelFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerHeadOfPersonnelFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -7717,7 +7717,7 @@
       "extra": {}
     },
     "VendingBarDrobe": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/bardrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/bardrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -7784,7 +7784,7 @@
       }
     },
     "SalvageCanisterSpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/pink.png",
+      "url": "/assets/textures/Structures/Storage/canister.rsi/yellow.png",
       "state": "pink",
       "size": [
         32,
@@ -7833,7 +7833,7 @@
       "extra": {}
     },
     "VendingMachineDinnerware": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/dinnerware.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/dinnerware.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -7847,7 +7847,7 @@
       }
     },
     "VendingMachineHappyHonk": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/happyhonk.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/happyhonk.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -7896,7 +7896,7 @@
       "extra": {}
     },
     "LockerFreezerVaultFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerFreezerVaultFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8048,7 +8048,7 @@
       "extra": {}
     },
     "ClosetBombFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetBombFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8059,7 +8059,7 @@
       "extra": {}
     },
     "ClosetRadiationSuitFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetRadiationSuitFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8081,7 +8081,7 @@
       "extra": {}
     },
     "ComputerCargoBounty": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerCargoBounty.png",
       "state": "computer",
       "size": [
         32,
@@ -8116,7 +8116,7 @@
       "extra": {}
     },
     "LockerChiefMedicalOfficerFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerChiefMedicalOfficerFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -8127,7 +8127,7 @@
       "extra": {}
     },
     "LockerBotanistFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerBotanistFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8160,7 +8160,7 @@
       "extra": {}
     },
     "RandomVendingSnacks": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/snack.rsi/lit.png",
       "state": "red",
       "size": [
         32,
@@ -8272,7 +8272,7 @@
       }
     },
     "LockerChemistryFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerChemistryFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8283,7 +8283,7 @@
       "extra": {}
     },
     "VendingMachineYouTool": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/youtool.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/youtool.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -8406,7 +8406,7 @@
       }
     },
     "ClosetEmergencyN2FilledRandom": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetEmergencyN2FilledRandom.png",
       "state": "generic",
       "size": [
         32,
@@ -8477,7 +8477,7 @@
       "extra": {}
     },
     "LockerBoozeFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerBoozeFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8548,7 +8548,7 @@
       "extra": {}
     },
     "VendingMachineGames": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/games.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/games.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -8584,7 +8584,7 @@
       "extra": {}
     },
     "RandomArtifactSpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Storage/Crates/artifact.rsi/artifact_container_icon.png",
       "state": "red",
       "size": [
         32,
@@ -8788,7 +8788,7 @@
       "extra": {}
     },
     "SpawnMobWalter": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/walter.png",
       "state": "green",
       "size": [
         32,
@@ -8799,7 +8799,7 @@
       "extra": {}
     },
     "PottedPlantRandom": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Furniture/potted_plants.rsi/plant-09.png",
       "state": "red",
       "size": [
         32,
@@ -8810,7 +8810,7 @@
       "extra": {}
     },
     "VendingMachineChapel": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/chapdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/chapdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -8869,7 +8869,7 @@
       "extra": {}
     },
     "LockerDetectiveFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerDetectiveFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -8943,7 +8943,7 @@
       }
     },
     "LockerHeadOfSecurityFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerHeadOfSecurityFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -8979,7 +8979,7 @@
       "extra": {}
     },
     "SpawnMobAlexander": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/pig.png",
       "state": "green",
       "size": [
         32,
@@ -9089,7 +9089,7 @@
       "extra": {}
     },
     "RandomPosterAny": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Wallmounts/posters.rsi/poster12_legit.png",
       "state": "red",
       "size": [
         32,
@@ -9122,7 +9122,7 @@
       "extra": {}
     },
     "VendingMachineBooze": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/boozeomat.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/boozeomat.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -9306,7 +9306,7 @@
       "extra": {}
     },
     "SpawnMobBandito": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/mouse.png",
       "state": "green",
       "size": [
         32,
@@ -9421,7 +9421,7 @@
       }
     },
     "VendingMachineWinter": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/winterdrobe.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/winterdrobe.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -9468,7 +9468,7 @@
       "extra": {}
     },
     "ComputerPowerMonitoring": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerPowerMonitoring.png",
       "state": "computer",
       "size": [
         32,
@@ -9481,7 +9481,7 @@
       }
     },
     "WardrobeGreyFilled": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/WardrobeGreyFilled.png",
       "state": "generic",
       "size": [
         32,
@@ -9576,7 +9576,7 @@
       }
     },
     "ComputerRoboticsControl": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerRoboticsControl.png",
       "state": "computer",
       "size": [
         32,
@@ -9589,7 +9589,7 @@
       }
     },
     "ComputerSurveillanceCameraMonitor": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerSurveillanceCameraMonitor.png",
       "state": "computer",
       "size": [
         32,
@@ -9689,7 +9689,7 @@
       }
     },
     "RandomArcade": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Machines/arcade.rsi/arcade.png",
       "state": "red",
       "size": [
         32,
@@ -9727,7 +9727,7 @@
       }
     },
     "RandomPosterContraband": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Wallmounts/posters.rsi/poster15_contraband.png",
       "state": "red",
       "size": [
         32,
@@ -9738,7 +9738,7 @@
       "extra": {}
     },
     "SpawnMobCatFloppa": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/floppa.png",
       "state": "green",
       "size": [
         32,
@@ -9771,7 +9771,7 @@
       "extra": {}
     },
     "SpawnMobShiva": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/shiva.png",
       "state": "green",
       "size": [
         32,
@@ -9870,7 +9870,7 @@
       "extra": {}
     },
     "CultAltarSpawner": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Furniture/Tables/wood.rsi/full.png",
       "state": "red",
       "size": [
         32,
@@ -9903,7 +9903,7 @@
       "extra": {}
     },
     "SpawnMobPossumMorty": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/possum.png",
       "state": "green",
       "size": [
         32,
@@ -9958,7 +9958,7 @@
       "extra": {}
     },
     "ClosetEmergencyFilledRandom": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/ClosetEmergencyFilledRandom.png",
       "state": "generic",
       "size": [
         32,
@@ -10079,7 +10079,7 @@
       "extra": {}
     },
     "SpawnMobFoxRenault": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/fox.png",
       "state": "green",
       "size": [
         32,
@@ -10244,7 +10244,7 @@
       "extra": {}
     },
     "LockerChiefEngineerFilledHardsuit": {
-      "url": "/assets/textures/Structures/Storage/closet.rsi/generic.png",
+      "url": "/assets/textures/Structures/Storage/closet.rsi/LockerChiefEngineerFilledHardsuit.png",
       "state": "generic",
       "size": [
         32,
@@ -10359,7 +10359,7 @@
       "extra": {}
     },
     "ComputerCargoOrders": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerCargoOrders.png",
       "state": "computer",
       "size": [
         32,
@@ -10372,7 +10372,7 @@
       }
     },
     "VendingMachineTheater": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/theater.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/theater.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -10460,7 +10460,7 @@
       "extra": {}
     },
     "ComputerComms": {
-      "url": "/assets/textures/Structures/Machines/computers.rsi/computer.png",
+      "url": "/assets/textures/Structures/Machines/computers.rsi/ComputerComms.png",
       "state": "computer",
       "size": [
         32,
@@ -10484,7 +10484,7 @@
       "extra": {}
     },
     "VendingMachineNutri": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/nutri.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/nutri.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -10509,7 +10509,7 @@
       "extra": {}
     },
     "VendingMachineSnack": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/snack.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/snack.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -10674,7 +10674,7 @@
       "extra": {}
     },
     "VendingMachineSec": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/sec.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/sec.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -10780,7 +10780,7 @@
       "extra": {}
     },
     "VendingMachineChefvend": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/chefvend.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/chefvend.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -10849,7 +10849,7 @@
       "extra": {}
     },
     "VendingMachineRobotics": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/robotics.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/robotics.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -10877,7 +10877,7 @@
       }
     },
     "RandomPosterLegit": {
-      "url": "/assets/textures/Markers/cross.rsi/red.png",
+      "url": "/assets/textures/Structures/Wallmounts/posters.rsi/poster11_legit.png",
       "state": "red",
       "size": [
         32,
@@ -10926,7 +10926,7 @@
       "extra": {}
     },
     "SpawnMobRaccoonMorticia": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/raccoon.png",
       "state": "green",
       "size": [
         32,
@@ -11109,7 +11109,7 @@
       "extra": {}
     },
     "VendingMachineCola": {
-      "url": "/assets/textures/Structures/Machines/VendingMachines/cola.rsi/off.png",
+      "url": "/assets/textures/Structures/Machines/VendingMachines/cola.rsi/lit.png",
       "state": "off",
       "size": [
         32,
@@ -11219,7 +11219,7 @@
       "extra": {}
     },
     "SpawnMobSlothPaperwork": {
-      "url": "/assets/textures/Markers/cross.rsi/green.png",
+      "url": "/assets/textures/Mobs/Pets/sloth.png",
       "state": "green",
       "size": [
         32,
@@ -12510,7 +12510,7 @@
     },
     "Screwdriver": {
       "name": "Отвёртка",
-      "url": "/assets/textures/Objects/Tools/screwdriver.rsi/icon.png",
+      "url": "/assets/textures/Objects/Tools/screwdriver.rsi/screwdriver.png",
       "type": "tool_screw",
       "damage": 8
     },
@@ -12607,19 +12607,19 @@
     },
     "Shaker": {
       "name": "Барный шейкер",
-      "url": "/assets/textures/Objects/Consumable/Drinks/shaker.rsi/shaker.png",
+      "url": "/assets/textures/Objects/Consumable/Drinks/shaker.rsi/icon.png",
       "type": "food",
       "heal": 10
     },
     "DrinkMug": {
       "name": "Кружка космо-кофе",
-      "url": "/assets/textures/Objects/Consumable/Drinks/mug.rsi/mug.png",
+      "url": "/assets/textures/Objects/Consumable/Drinks/mug.rsi/icon-vend-brown.png",
       "type": "food",
       "heal": 15
     },
     "Whiskey": {
       "name": "Бутылка виски",
-      "url": "/assets/textures/Objects/Consumable/Drinks/whiskeybottle.rsi/icon.png",
+      "url": "/assets/textures/Objects/Consumable/Drinks/whiskeybottle.rsi/icon_empty.png",
       "type": "food",
       "heal": 12
     },

@@ -491,10 +491,54 @@ class SS14StationRuntime:
         self.spawn_points = list(self.map_data.get("spawnPoints", []))
 
         # Separate real map items (category == "item", 675 items on tables/floors in saltern.yml)
-        # from static furniture/machines so every map item is pickable & interactive!
+        # and item spawners from static furniture/machines, and strip invisible editor markers!
+        invisible_markers = {
+            "AtmosFixBlockerMarker",
+            "AtmosFixFreezerMarker",
+            "AtmosFixNitrogenMarker",
+            "AtmosFixOxygenMarker",
+            "AtmosFixPlasmaMarker",
+            "WarpPoint",
+            "MouseTimedSpawner",
+        }
+        item_spawner_tables: Dict[str, List[str]] = {
+            "MaintenanceToolSpawner": ["Crowbar", "Wrench", "Screwdriver", "Wirecutter", "Multitool", "Welder"],
+            "MaintenanceWeaponSpawner": ["CombatKnife", "Crowbar", "Flash", "Stunbaton"],
+            "MaintenanceFluffSpawner": ["DrinkMug", "Flash", "Soap", "Banana", "BookHowToRockAndStone"],
+            "BedsheetSpawner": ["Medkit", "DrinkMug"],
+            "PlushieSpawner50": ["BikeHornInstrument", "Banana"],
+            "RandomBoard": ["Multitool", "Screwdriver"],
+            "RandomDrinkBottle": ["Whiskey", "Shaker"],
+            "RandomDrinkGlass": ["DrinkMug", "Beaker"],
+            "RandomFoodMeal": ["Banana", "DrinkMug"],
+            "RandomFoodSingle": ["Banana", "DrinkMug"],
+            "RandomInstruments": ["AcousticGuitarInstrument", "BikeHornInstrument"],
+            "RandomSnacks": ["Banana", "DrinkMug"],
+            "RandomSoap": ["Soap"],
+            "DonkpocketBoxSpawner": ["Medkit"],
+            "SalvageLootSpawner": ["AppraisalTool", "Crowbar", "Welder"],
+            "SpacemenFigurineSpawner90": ["BikeHornInstrument"],
+            "SpawnVendingMachineRestockFoodDrink": ["BoxFolderBlack"],
+        }
         all_map_objs = [dict(o) for o in self.map_data.get("objects", [])]
-        self._initial_map_items = [o for o in all_map_objs if o.get("category") == "item"]
-        self.objects = [o for o in all_map_objs if o.get("category") != "item"]
+        self._initial_map_items = []
+        self.objects = []
+        for idx, o in enumerate(all_map_objs):
+            proto = o.get("proto", "")
+            if proto in invisible_markers:
+                continue
+            if o.get("category") == "item":
+                self._initial_map_items.append(o)
+            elif proto in item_spawner_tables:
+                choices = item_spawner_tables[proto]
+                picked = choices[idx % len(choices)]
+                spawned_item = dict(o)
+                spawned_item["proto"] = picked
+                spawned_item["name"] = self.item_catalog.get(picked, {}).get("name", picked)
+                self._initial_map_items.append(spawned_item)
+            else:
+                self.objects.append(o)
+
         self.map_data["objects"] = self.objects
         self.objects_by_uid = {int(o["uid"]): o for o in self.objects}
         self.floor_items_version: int = 1
@@ -1406,10 +1450,39 @@ class SS14StationRuntime:
 
         # Open interactive BUI window in browser for consoles, vending machines, lockers, med scanners!
         bui_type = None
-        if cat == "vending":
+        if proto.startswith("SpawnMob"):
+            pet_names = {
+                "SpawnMobCorgi": "корги Иана",
+                "SpawnMobCat": "кошку Рантайм",
+                "SpawnMobCatFloppa": "каракала Шлёпу",
+                "SpawnMobFoxRenault": "лисицу Рено",
+                "SpawnMobMcGriff": "пса СБ МакГриффа",
+                "SpawnMobMonkeyPunpun": "обезьянку Пун-Пуна",
+                "SpawnMobSlothPaperwork": "ленивца Пейперворка",
+                "SpawnMobPossumMorty": "опоссума Морти",
+                "SpawnMobRaccoonMorticia": "енота Мортишу",
+                "SpawnMobCrabAtmos": "атмос-краба Тропико",
+                "SpawnMobWalter": "пса Уолтера",
+                "SpawnMobShiva": "паука Шиву",
+                "SpawnMobAlexander": "кабанчика Александра",
+            }
+            pet_ru = pet_names.get(proto, "питомца станции")
+            agent.health = min(agent.max_health, agent.health + 10.0)
+            self.add_visual_effect("heal", obj["x"], obj["y"], obj["x"], obj["y"], "#22c55e", 0.7)
+            self.command_agent_emote(agent_id, f"ласково гладит {pet_ru} ❤️")
+            return {"ok": True, "message": f"Погладил(а) {pet_ru} (+10 HP)"}
+        elif cat == "chair":
+            agent.x = round(obj["x"], 2)
+            agent.y = round(obj["y"], 2)
+            agent.path.clear()
+            agent.current_task = f"Сидит на {name}"
+            return {"ok": True, "message": agent.current_task}
+        elif cat == "vending":
             bui_type = "vending"
         elif cat == "console":
-            if "Cargo" in proto or "Supply" in proto:
+            if "Camera" in proto or "Surveillance" in proto:
+                bui_type = "camera_console"
+            elif "Cargo" in proto or "Supply" in proto:
                 bui_type = "cargo_console"
             elif "Comm" in proto or "Alert" in proto:
                 bui_type = "comms_console"

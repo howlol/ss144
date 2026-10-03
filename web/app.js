@@ -116,28 +116,46 @@ function getSpriteImage(urlOrObj) {
   return img;
 }
 
+function drawRsiDirectionalTile(ctx, img, dirIdx, dx, dy, dw, dh) {
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+  const cols = Math.max(1, Math.floor(nw / 32));
+  const rows = Math.max(1, Math.floor(nh / 32));
+  const totalFrames = cols * rows;
+  const idx = dirIdx < totalFrames ? dirIdx : 0;
+  const sx = (idx % cols) * 32;
+  const sy = Math.floor(idx / cols) * 32;
+  ctx.drawImage(img, sx, sy, 32, 32, dx, dy, dw, dh);
+}
+
+function rotToDirIdx(rot) {
+  // In SS14 world coordinates: 0 = South, pi = North, pi/2 = East, 3*pi/2 = West
+  const twoPi = Math.PI * 2;
+  const norm = ((rot % twoPi) + twoPi) % twoPi;
+  if (Math.abs(norm - Math.PI) < 0.65) return 1; // North
+  if (Math.abs(norm - Math.PI / 2) < 0.65) return 2; // East
+  if (Math.abs(norm - (3 * Math.PI) / 2) < 0.65) return 3; // West
+  return 0; // South
+}
+
 function drawFirstFrame(ctx, img, dx, dy, dw, dh, rot = 0) {
   if (!img || !img.complete || img.naturalWidth === 0) return false;
   const nw = img.naturalWidth;
   const nh = img.naturalHeight;
+  const isFourDirSheet = (nw === 64 && nh === 64) || (nw >= 128 && nh >= 32);
 
   if (Math.abs(rot) > 0.05) {
+    if (isFourDirSheet) {
+      const dirIdx = rotToDirIdx(rot);
+      drawRsiDirectionalTile(ctx, img, dirIdx, dx, dy, dw, dh);
+      return true;
+    }
     ctx.save();
     ctx.translate(dx + dw / 2, dy + dh / 2);
-    // If 4-directional sheet, pick directional frame instead of rotating canvas
-    if (nw >= 128 && nh >= 32) {
-      let dirIdx = 0; // south
-      const norm = ((rot % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      if (Math.abs(norm - Math.PI) < 0.6) dirIdx = 1; // north
-      else if (Math.abs(norm - Math.PI / 2) < 0.6) dirIdx = 2; // east
-      else if (Math.abs(norm - (3 * Math.PI) / 2) < 0.6) dirIdx = 3; // west
-      ctx.drawImage(img, dirIdx * 32, 0, 32, 32, -dw / 2, -dh / 2, dw, dh);
-    } else {
-      ctx.rotate(-rot);
-      const frameW = nw >= 32 ? 32 : nw;
-      const frameH = nh >= 32 ? 32 : nh;
-      ctx.drawImage(img, 0, 0, frameW, frameH, -dw / 2, -dh / 2, dw, dh);
-    }
+    ctx.rotate(-rot);
+    const frameW = nw >= 32 ? 32 : nw;
+    const frameH = nh >= 32 ? 32 : nh;
+    ctx.drawImage(img, 0, 0, frameW, frameH, -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
     return true;
   }
@@ -156,10 +174,10 @@ function drawDirectionalFrame(ctx, img, direction, dx, dy, dw, dh) {
   if (!img || !img.complete || img.naturalWidth === 0) return false;
   const nw = img.naturalWidth;
   const nh = img.naturalHeight;
-  if (nw >= 128 && nh >= 32) {
+  if ((nw >= 64 && nh >= 64) || (nw >= 128 && nh >= 32)) {
     const dirMap = { south: 0, north: 1, east: 2, west: 3 };
     const dirIdx = dirMap[direction] ?? 0;
-    ctx.drawImage(img, dirIdx * 32, 0, 32, 32, dx, dy, dw, dh);
+    drawRsiDirectionalTile(ctx, img, dirIdx, dx, dy, dw, dh);
   } else {
     drawFirstFrame(ctx, img, dx, dy, dw, dh, 0);
   }
@@ -398,6 +416,9 @@ async function initApp() {
     Object.values(state.sprites.tiles || {}).forEach(getSpriteImage);
     Object.values(state.sprites.humanoid || {}).forEach(getSpriteImage);
     Object.values(state.sprites.items || {}).forEach((it) => getSpriteImage(it.url));
+    Object.values(state.sprites.job_outfits || {}).forEach((jo) => {
+      Object.values(jo.layers || {}).forEach(getSpriteImage);
+    });
   }
 
   if (state.browserLlm.apiKey) {
@@ -846,13 +867,13 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
         const isBolted = boltedDoors.has(door.uid);
         const pInfo = protoSprites[door.proto] || protoSprites["Airlock"];
         if (isOpen) {
-          // Open airlock side tracks
-          ctx.fillStyle = "rgba(15, 23, 42, 0.55)";
-          ctx.fillRect(sx, sy, drawSize * 0.16, drawSize);
-          ctx.fillRect(sx + drawSize * 0.84, sy, drawSize * 0.16, drawSize);
-          ctx.strokeStyle = "rgba(34, 197, 94, 0.55)";
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(sx + 2, sy + 2, drawSize - 4, drawSize - 4);
+          const openUrl = pInfo?.extra?.open;
+          const openImg = openUrl ? getSpriteImage(openUrl) : null;
+          if (!drawFirstFrame(ctx, openImg, sx, sy, drawSize, drawSize, 0)) {
+            ctx.fillStyle = "rgba(15, 23, 42, 0.55)";
+            ctx.fillRect(sx, sy, drawSize * 0.16, drawSize);
+            ctx.fillRect(sx + drawSize * 0.84, sy, drawSize * 0.16, drawSize);
+          }
         } else {
           const dImg = pInfo ? getSpriteImage(pInfo.url) : null;
           if (!drawFirstFrame(ctx, dImg, sx, sy, drawSize, drawSize, 0)) {
@@ -1013,27 +1034,34 @@ function renderStationScene(ctx, width, height, centerCamX, centerCamY, zoom, is
           ctx.translate(-sx, -sy);
         }
 
-        const bodyParts = [hum.chest, hum.head, hum.l_arm, hum.r_arm, hum.l_leg, hum.r_leg, hum.l_hand, hum.r_hand, hum.l_foot, hum.r_foot, hum.eyes];
+        const isFemale = ag.gender === "female";
+        const bodyParts = [
+          isFemale ? (hum.torso_f || hum.torso_m) : hum.torso_m,
+          isFemale ? (hum.head_f || hum.head_m) : hum.head_m,
+          hum.l_leg,
+          hum.r_leg,
+          hum.l_foot,
+          hum.r_foot,
+          hum.l_arm,
+          hum.r_arm,
+          hum.l_hand,
+          hum.r_hand,
+        ];
         let drewBody = false;
-        for (const partUrl of bodyParts) {
-          const img = getSpriteImage(partUrl);
+        for (const partObj of bodyParts) {
+          const img = getSpriteImage(partObj);
           if (drawDirectionalFrame(ctx, img, ag.direction, drawX, drawY, scale, scale)) {
             drewBody = true;
           }
         }
 
         const outfit = outfits[ag.job] || outfits["Passenger"] || {};
-        if (outfit.jumpsuit) {
-          drawDirectionalFrame(ctx, getSpriteImage(outfit.jumpsuit), ag.direction, drawX, drawY, scale, scale);
-        }
-        if (outfit.shoes) {
-          drawDirectionalFrame(ctx, getSpriteImage(outfit.shoes), ag.direction, drawX, drawY, scale, scale);
-        }
-        if (outfit.outer) {
-          drawDirectionalFrame(ctx, getSpriteImage(outfit.outer), ag.direction, drawX, drawY, scale, scale);
-        }
-        if (outfit.head) {
-          drawDirectionalFrame(ctx, getSpriteImage(outfit.head), ag.direction, drawX, drawY, scale, scale);
+        const layers = outfit.layers || outfit;
+        const layerOrder = ["jumpsuit", "shoes", "gloves", "belt", "outer", "back", "ears", "eyes", "mask", "head"];
+        for (const lk of layerOrder) {
+          if (layers[lk]) {
+            drawDirectionalFrame(ctx, getSpriteImage(layers[lk]), ag.direction, drawX, drawY, scale, scale);
+          }
         }
 
         const activeHandObj = ag.activeHand === "left" ? ag.leftHand : ag.rightHand;
@@ -1226,6 +1254,8 @@ function renderEquipWindow(force = false) {
   state.domHashes.equip = hash;
 
   const outfit = (state.sprites?.job_outfits || {})[ag.job] || {};
+  const layers = outfit.layers || outfit;
+  const unwrap = (v) => (typeof v === "string" ? v : v?.url || "");
   document.getElementById("equipCharSummary").innerHTML = `
     <div><strong>${ag.name}</strong> — ${ag.jobTitleRu} (${ag.department})</div>
     <div style="font-size:10.5px;color:#94a3b8;margin-top:2px">Здоровье: ${Math.round(ag.health)}% • Отсек: ${ag.currentRoom}</div>
@@ -1234,10 +1264,10 @@ function renderEquipWindow(force = false) {
   const grid = document.getElementById("equipSlotsGrid");
   grid.innerHTML = "";
   const slots = [
-    ["Головной убор", outfit.head, "Шлем / Шапка должности"],
-    ["Верхняя одежда", outfit.outer, "Броня / Халат / Скафандр"],
-    ["Униформа", outfit.jumpsuit, "Комбинезон станции"],
-    ["Обувь", outfit.shoes, "Ботинки"],
+    ["Головной убор", unwrap(layers.head), "Шлем / Шапка должности"],
+    ["Верхняя одежда", unwrap(layers.outer), "Броня / Халат / Скафандр"],
+    ["Униформа", unwrap(layers.jumpsuit), "Комбинезон станции"],
+    ["Значок должности", unwrap(layers.icon), ag.jobTitleRu],
     ["Левая рука", ag.leftHand?.url, ag.leftHand?.name || "Пусто"],
     ["Правая рука", ag.rightHand?.url, ag.rightHand?.name || "Пусто"],
   ];
@@ -1458,10 +1488,15 @@ function populateBeaconsAndRooms() {
 // ============================================================================
 
 function openBuiWindow(bui) {
+  if (!bui) return;
+  if (bui.type === "camera_console") {
+    document.getElementById("cctvWindow").classList.remove("hidden");
+    return;
+  }
   const win = document.getElementById("buiWindow");
   const title = document.getElementById("buiTitle");
   const body = document.getElementById("buiBody");
-  if (!win || !bui) return;
+  if (!win) return;
 
   win.classList.remove("hidden");
   title.textContent = `🖥️ ${bui.name || "Терминал станции"}`;
