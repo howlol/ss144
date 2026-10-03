@@ -1,0 +1,29 @@
+# Space Station 14 - Autonomous OpenAI Crew Server Configuration (NSS Saltern)
+
+[game]
+hostname = "[OpenAI Autonomous Station] NSS Saltern — 100% AI Crew + Live Web CCTV"
+desc = "Every crew member is an autonomous AI agent driven by an OpenAI-compatible LLM API, believing it is a real character on NSS Saltern. Observed and controlled via Web Browser & Station CCTV."
+map = "Saltern"
+maxplayers = 64
+lobbyenabled = false
+soft_max_players = 64
+panic_bunker.enabled = false
+role_timers = false
+role_whitelist = false
+
+[net]
+port = 1212
+bindto = "0.0.0.0,::"
+
+[status]
+enabled = true
+bind = "0.0.0.0:1212"
+
+[auth]
+mode = 0
+
+[admin]
+see_own_notes = true
+
+[aistation]
+bridge_port = 12120

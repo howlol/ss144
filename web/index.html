@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Station 14 — ИИ-Экипаж, Режим Игрока, Гост и Камеры (NSS Saltern)</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- Top Command Header -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">SS14</div>
+      <div>
+        <div class="brand-title">NSS SALTERN — ИГРА В БРАУЗЕРЕ, ГОСТ И ИИ-ЭКИПАЖ</div>
+        <div class="brand-subtitle">Реальный билд карты и спрайтов Space Station 14 • Каждый персонаж управляется OpenAI API</div>
+      </div>
+    </div>
+
+    <!-- Main Gameplay Mode Switcher -->
+    <div class="mode-switcher">
+      <button id="modePlayBtn" class="mode-btn active" title="Играть за отдельного персонажа на станции (WASD, руки, инвентарь, бой, консоли)">
+        🎮 Играть за персонажа
+      </button>
+      <button id="modeGhostBtn" class="mode-btn ghost-btn" title="Режим Госта (MobObserver): полёт сквозь стены, телепорт к экипажу, пугание, вселение">
+        👻 Режим Госта
+      </button>
+      <button id="modeCctvBtn" class="mode-btn" title="Режим поста охраны: 1 камера или 4 камеры одновременно (Quad Split-Screen)">
+        📹 Пост камер (CCTV)
+      </button>
+    </div>
+
+    <div class="station-telemetry">
+      <div class="telemetry-pill">
+        <span class="telemetry-label">РАУНД</span>
+        <span id="roundClock" class="telemetry-value">00:00</span>
+      </div>
+      <div class="telemetry-pill">
+        <span class="telemetry-label">КОД</span>
+        <span id="alertBadge" class="alert-badge green">ЗЕЛЁНЫЙ</span>
+      </div>
+      <div class="telemetry-pill">
+        <span class="telemetry-label">КАРГО</span>
+        <span id="cargoTelemetry" class="telemetry-value">4500 ₡</span>
+      </div>
+      <div class="telemetry-pill">
+        <span class="telemetry-label">OPENAI API</span>
+        <span id="llmStatusBadge" class="engine-badge autonomous" title="Нажмите для настройки OpenAI API">Настройте ключ</span>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="openJoinModalBtn" class="btn btn-success">➕ Создать своего игрока</button>
+      <button id="openEventModalBtn" class="btn btn-warning">🚨 Событие ЦК</button>
+      <button id="openApiModalBtn" class="btn btn-primary">⚙️ API Модель (OpenAI)</button>
+    </div>
+  </header>
+
+  <!-- Main 3-Column Layout -->
+  <main class="workspace">
+    <!-- Left Panel: CCTV Cameras, Beacons & Crew Roster -->
+    <aside class="sidebar left-sidebar">
+      <div class="panel-tabs">
+        <button class="tab-btn active" data-tab="crewTab">👥 Экипаж (14)</button>
+        <button class="tab-btn" data-tab="camerasTab">📹 Камеры (53)</button>
+        <button class="tab-btn" data-tab="beaconsTab">🧭 Отсеки</button>
+      </div>
+
+      <!-- Crew Roster Tab (Default for quick takeover/warp) -->
+      <section id="crewTab" class="tab-content active">
+        <div class="panel-header-row">
+          <span class="section-caption">Кликните для выбора / игры за персонажа</span>
+        </div>
+        <div id="crewRosterList" class="crew-list"></div>
+      </section>
+
+      <!-- Cameras Tab -->
+      <section id="camerasTab" class="tab-content">
+        <div class="panel-header-row">
+          <input id="cameraSearchInput" type="text" class="search-input" placeholder="Поиск камеры (Bridge, Medbay, Bar...)" />
+        </div>
+        <div class="view-mode-bar">
+          <button id="singleCamModeBtn" class="mode-chip active">1 Камера</button>
+          <button id="quadCamModeBtn" class="mode-chip">4 Камеры (Quad)</button>
+          <button id="freePanModeBtn" class="mode-chip">Свободная</button>
+        </div>
+        <div id="cameraList" class="camera-list"></div>
+      </section>
+
+      <!-- Beacons / Rooms Tab -->
+      <section id="beaconsTab" class="tab-content">
+        <div class="panel-header-row">
+          <input id="beaconSearchInput" type="text" class="search-input" placeholder="Поиск отсека (Armory, Chemistry...)" />
+        </div>
+        <div id="beaconList" class="camera-list"></div>
+      </section>
+    </aside>
+
+    <!-- Center Viewport: Full Playable SS14 Canvas + Authentic Bottom SS14 HUD -->
+    <section class="viewport-area">
+      <!-- Viewport Top Overlay Bar -->
+      <div class="viewport-hud-top">
+        <div class="camera-rec-indicator">
+          <span class="rec-dot"></span>
+          <span id="activeCameraTitle">ИГРОВОЙ РЕЖИМ — NSS SALTERN</span>
+        </div>
+        <div class="hud-controls">
+          <span id="fpsCounter" class="fps-badge">60 FPS</span>
+          <button id="zoomOutBtn" class="hud-btn" title="Отдалить">➖</button>
+          <span id="zoomLabel" class="zoom-label">100%</span>
+          <button id="zoomInBtn" class="hud-btn" title="Приблизить">➕</button>
+          <button id="toggleNamesBtn" class="hud-btn active" title="Имена и мысли над головой">🏷️ Имена</button>
+          <button id="togglePathsBtn" class="hud-btn active" title="Маршруты ИИ">📍 Пути</button>
+          <button id="toggleCrtBtn" class="hud-btn" title="Эффект ЭЛТ-монитора">📺 CRT</button>
+        </div>
+      </div>
+
+      <!-- Single Interactive Gameplay Canvas -->
+      <div id="singleViewportContainer" class="canvas-wrapper">
+        <canvas id="stationCanvas"></canvas>
+        <div id="crtOverlay" class="crt-overlay hidden"></div>
+
+        <!-- Ghost Mode Floating Bar (shown when in Ghost mode) -->
+        <div id="ghostHudBanner" class="ghost-hud-banner hidden">
+          <div class="ghost-banner-left">
+            <span class="ghost-icon">👻</span>
+            <div>
+              <div class="ghost-title">РЕЖИМ ГОСТА (MobObserver) — Сквозь стены и шлюзы</div>
+              <div class="ghost-sub">WASD / ЛКМ — полёт • Клик по персонажу — вселиться в тело • Кнопка «Напугать» — мигнуть светом</div>
+            </div>
+          </div>
+          <div class="ghost-banner-actions">
+            <button id="ghostBooBtn" class="btn btn-sm btn-warning">⚡ Напугать экипаж (Boo!)</button>
+            <select id="ghostWarpSelect" class="select-input ghost-select">
+              <option value="">🌀 Телепорт (Ghost Warp)...</option>
+            </select>
+            <button id="ghostReturnBodyBtn" class="btn btn-sm btn-success">🏃 Вернуться в тело</button>
+          </div>
+        </div>
+
+        <!-- Context Menu (Right-Click SS14 Verb Menu) -->
+        <div id="contextMenu" class="ss14-context-menu hidden"></div>
+
+        <!-- Interactive BUI Machine Window (Vending, Cargo, Comms, Uplink, MedScanner) -->
+        <div id="buiWindow" class="ss14-bui-window hidden">
+          <div class="bui-header">
+            <span id="buiTitle">Терминал станции</span>
+            <button id="buiCloseBtn" class="bui-close">✕</button>
+          </div>
+          <div id="buiBody" class="bui-body"></div>
+        </div>
+      </div>
+
+      <!-- Quad CCTV Split-Screen View (4 Cameras simultaneously) -->
+      <div id="quadViewportContainer" class="quad-grid hidden">
+        <div class="quad-cell" data-slot="0">
+          <div class="quad-cell-header">
+            <span class="rec-dot"></span>
+            <select class="quad-cam-select" data-slot="0"></select>
+          </div>
+          <canvas id="quadCanvas0" class="quad-canvas"></canvas>
+        </div>
+        <div class="quad-cell" data-slot="1">
+          <div class="quad-cell-header">
+            <span class="rec-dot"></span>
+            <select class="quad-cam-select" data-slot="1"></select>
+          </div>
+          <canvas id="quadCanvas1" class="quad-canvas"></canvas>
+        </div>
+        <div class="quad-cell" data-slot="2">
+          <div class="quad-cell-header">
+            <span class="rec-dot"></span>
+            <select class="quad-cam-select" data-slot="2"></select>
+          </div>
+          <canvas id="quadCanvas2" class="quad-canvas"></canvas>
+        </div>
+        <div class="quad-cell" data-slot="3">
+          <div class="quad-cell-header">
+            <span class="rec-dot"></span>
+            <select class="quad-cam-select" data-slot="3"></select>
+          </div>
+          <canvas id="quadCanvas3" class="quad-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Authentic SS14 Bottom Player Hotbar & Hands HUD -->
+      <div class="ss14-player-hud">
+        <!-- Active Character Badge & Vitals -->
+        <div class="hud-char-box">
+          <div class="hud-char-top">
+            <span id="hudCharName" class="hud-char-name">Выберите персонажа</span>
+            <span id="hudCharJob" class="hud-char-job">—</span>
+          </div>
+          <div class="hud-vitals-row">
+            <div class="vital-bar-wrap" title="Здоровье (HP)">
+              <span>❤️</span>
+              <div class="vital-bar"><div id="hudHealthFill" class="vital-fill hp" style="width:100%"></div></div>
+              <span id="hudHealthText" class="vital-txt">100%</span>
+            </div>
+            <span id="hudRoomBadge" class="hud-room-badge">📍 Bridge</span>
+          </div>
+        </div>
+
+        <!-- Dual Hands (Left Hand / Right Hand) + Swap & Use -->
+        <div class="hud-hands-section">
+          <div id="hudLeftHand" class="hud-hand-slot active" title="Левая рука (клик для активации или использования)">
+            <div class="slot-key">Л. РУКА [1]</div>
+            <img id="hudLeftImg" class="slot-img hidden" alt="" />
+            <div id="hudLeftName" class="slot-name">Пусто</div>
+          </div>
+
+          <div class="hud-hand-controls">
+            <button id="hudSwapHandsBtn" class="hud-mini-btn" title="Сменить активную руку (клавиша X)">⇄ [X]</button>
+            <button id="hudUseHandBtn" class="hud-mini-btn use" title="Использовать предмет в активной руке (клавиша Z)">⚡ [Z]</button>
+            <button id="hudDropHandBtn" class="hud-mini-btn drop" title="Выбросить предмет на пол (клавиша Q)">⬇ [Q]</button>
+          </div>
+
+          <div id="hudRightHand" class="hud-hand-slot" title="Правая рука (клик для активации или использования)">
+            <div class="slot-key">П. РУКА [2]</div>
+            <img id="hudRightImg" class="slot-img hidden" alt="" />
+            <div id="hudRightName" class="slot-name">Пусто</div>
+          </div>
+        </div>
+
+        <!-- Belt / Pocket Inventory Slots -->
+        <div class="hud-inv-section">
+          <div class="hud-section-label">ИНВЕНТАРЬ / ПОЯС (клик — взять в руку)</div>
+          <div id="hudInventoryBar" class="hud-inv-slots"></div>
+        </div>
+
+        <!-- Combat Mode, Syndicate Uplink & Quick Say -->
+        <div class="hud-actions-section">
+          <button id="hudCombatBtn" class="hud-combat-btn" title="Переключить Боевой режим (клавиша C): МИР (лечение/осмотр) / БОЙ (стрельба/удары)">
+            🛡️ МИР [C]
+          </button>
+          <button id="hudUplinkBtn" class="hud-uplink-btn" title="Открыть КПК / Аплинк Синдиката (покупка снаряжения за телекристаллы)">
+            📱 КПК / Аплинк
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Panel: Character Inspector, Radio/IC Chat & Live OpenAI API Logs -->
+    <aside class="sidebar right-sidebar">
+      <!-- Selected Agent Inspector -->
+      <div class="inspector-panel">
+        <div class="inspector-header">
+          <div>
+            <div id="inspName" class="insp-name">Выберите персонажа</div>
+            <div id="inspJob" class="insp-job">Нажмите на члена экипажа</div>
+          </div>
+          <div class="insp-header-btns">
+            <button id="playAsSelectedBtn" class="btn btn-sm btn-success" title="Играть за этого персонажа с клавиатуры (WASD) и мыши">
+              🎮 Играть за него
+            </button>
+            <button id="forceLlmStepBtn" class="btn btn-sm btn-primary" title="Мгновенно отправить запрос к OpenAI API для этого персонажа">
+              🧠 Запрос к ИИ
+            </button>
+          </div>
+        </div>
+
+        <div id="inspBody" class="inspector-body">
+          <div class="insp-stats-row">
+            <span id="inspRoom" class="stat-tag">📍 Отсек: —</span>
+            <span id="inspHealth" class="stat-tag">❤️ 100%</span>
+            <span id="inspLlmCalls" class="stat-tag">🤖 Вызовов API: 0</span>
+          </div>
+
+          <div class="thought-box">
+            <div class="thought-label">💭 ВНУТРЕННЯЯ МЫСЛЬ ПЕРСОНАЖА (ИИ):</div>
+            <div id="inspThought" class="thought-text">Ожидание выбора персонажа...</div>
+          </div>
+
+          <div class="task-box">
+            <span class="task-label">📋 Задача:</span>
+            <span id="inspTask">—</span>
+          </div>
+
+          <!-- Direct Player / Subconscious Command Box -->
+          <div class="control-box">
+            <div class="control-row">
+              <input id="directSayInput" type="text" class="text-input" placeholder="Сказать вслух или в рацию (;Общий, :s СБ, :e Инж)..." />
+              <button id="sendSayBtn" class="btn btn-sm btn-primary">Сказать</button>
+            </div>
+            <div class="control-row">
+              <input id="subconsciousInput" type="text" class="text-input" placeholder="Подсознательный импульс ИИ (напр.: Иди в Бар и закажи виски)..." />
+              <button id="sendThoughtBtn" class="btn btn-sm btn-accent">Внушить ИИ</button>
+            </div>
+            <div class="control-row">
+              <select id="moveRoomSelect" class="select-input">
+                <option value="">Отправить в отсек...</option>
+              </select>
+              <button id="sendMoveRoomBtn" class="btn btn-sm">Идти</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Right: Station Radio & IC Chat + OpenAI API Logs -->
+      <div class="chat-panel">
+        <div class="panel-tabs">
+          <button class="tab-btn active" data-tab="chatFeedTab">📻 Рация и Чат</button>
+          <button class="tab-btn" data-tab="apiLogsTab">⚡ Логи OpenAI (<span id="apiCallCountTab">0</span>)</button>
+        </div>
+
+        <section id="chatFeedTab" class="tab-content active chat-tab-container">
+          <div id="chatFeed" class="chat-feed"></div>
+        </section>
+
+        <section id="apiLogsTab" class="tab-content chat-tab-container">
+          <div class="api-log-toolbar">
+            <span id="apiDirectStatusText" class="api-status-inline">Готов к запросам OpenAI API</span>
+            <button id="runNextAgentNowBtn" class="btn btn-sm btn-primary">▶️ Запросить ИИ сейчас</button>
+          </div>
+          <div id="apiLogsFeed" class="chat-feed"></div>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modal 1: OpenAI-Compatible API Configuration -->
+  <div id="apiModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>⚙️ Подключение модели OpenAI API</h3>
+        <button class="modal-close" data-close="apiModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Укажите ваш <strong>API Key</strong>, <strong>Base URL</strong> и <strong>Модель</strong>.
+          Запросы к модели отправляются <strong>напрямую из вашего браузера и с сервера</strong> — поэтому работают любые облачные провайдеры
+          (OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral) и даже ваш локальный <code>localhost</code> (Ollama / LM Studio / vLLM)!
+        </p>
+
+        <label class="form-label">API Base URL Endpoint</label>
+        <input id="apiBaseUrlInput" type="text" class="text-input" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
+        <div class="preset-chips">
+          <button class="preset-chip" data-url="https://api.openai.com/v1" data-model="gpt-4o-mini">OpenAI (gpt-4o-mini)</button>
+          <button class="preset-chip" data-url="https://openrouter.ai/api/v1" data-model="openai/gpt-4o-mini">OpenRouter</button>
+          <button class="preset-chip" data-url="https://api.deepseek.com/v1" data-model="deepseek-chat">DeepSeek</button>
+          <button class="preset-chip" data-url="https://api.groq.com/openai/v1" data-model="llama-3.3-70b-versatile">Groq (быстрый)</button>
+          <button class="preset-chip" data-url="http://localhost:11434/v1" data-model="llama3.1">Ollama (localhost)</button>
+        </div>
+
+        <label class="form-label">API Ключ (Bearer Token)</label>
+        <input id="apiKeyInput" type="password" class="text-input" placeholder="sk-..." />
+
+        <div class="form-grid-2">
+          <div>
+            <label class="form-label">Название модели (Model ID)</label>
+            <input id="apiModelInput" type="text" class="text-input" value="gpt-4o-mini" placeholder="gpt-4o-mini" />
+          </div>
+          <div>
+            <label class="form-label">Интервал запросов ИИ (сек)</label>
+            <input id="apiIntervalInput" type="number" step="0.5" min="1" max="30" class="text-input" value="2.5" />
+          </div>
+        </div>
+
+        <div id="apiTestResult" class="api-test-result hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="testApiBtn" class="btn btn-accent">🔌 Проверить и отправить тест</button>
+        <button id="saveApiBtn" class="btn btn-primary">💾 Сохранить и запустить ИИ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Join Game / Create Player Character -->
+  <div id="joinModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🎮 Вступить в игру на станции NSS Saltern</h3>
+        <button class="modal-close" data-close="joinModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Создайте своего отдельного персонажа со снаряжением профессии (или войдите в режиме Призрака-Госта).
+          После входа вы управляете персонажем клавишами <strong>WASD</strong>, используете предметы в руках <strong>[Z]</strong>, меняете руки <strong>[X]</strong> и ведёте бой <strong>[C]</strong>!
+        </p>
+        <div class="form-grid-2">
+          <div>
+            <label class="form-label">Имя и Фамилия персонажа</label>
+            <input id="joinNameInput" type="text" class="text-input" value="Алекс Мерсер" />
+          </div>
+          <div>
+            <label class="form-label">Профессия (Job Prototype)</label>
+            <select id="joinJobSelect" class="select-input">
+              <option value="SecurityOfficer">Офицер СБ (Stunbaton + Flash + Disabler)</option>
+              <option value="StationEngineer">Инженер (RCD + Монтировка + Мультитул)</option>
+              <option value="MedicalDoctor">Врач (Аптечка + Анализатор + Медипен)</option>
+              <option value="Captain">Капитан (Disabler + Полный доступ)</option>
+              <option value="Detective">Детектив (Пистолет MK58 + Сканер улик)</option>
+              <option value="Clown">Клоун (Клаксон ХОНК + Банан + Мыло)</option>
+              <option value="Bartender">Бармен (Дробовик + Шейкер + Виски)</option>
+              <option value="Scientist">Учёный (Сканер аномалий + Мультитул)</option>
+              <option value="CargoTechnician">Грузчик Карго (Оценщик + Монтировка)</option>
+              <option value="Janitor">Уборщик (Швабра + Мыло + Огнетушитель)</option>
+              <option value="Passenger">Пассажир / Ассистент</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="form-label">Отсек появления</label>
+        <select id="joinRoomSelect" class="select-input">
+          <option value="">По умолчанию для профессии</option>
+          <option value="Bridge">Мостик (Bridge)</option>
+          <option value="Bar">Бар (Bar)</option>
+          <option value="Medbay">Медбей (Medbay)</option>
+          <option value="Brig">Бриг СБ (Brig)</option>
+          <option value="Engineering">Инженерный отсек (Engineering)</option>
+          <option value="CargoBay">Склад Карго (CargoBay)</option>
+        </select>
+
+        <label class="checkbox-row">
+          <input id="joinAntagCheck" type="checkbox" />
+          <span>🗡️ Агент Синдиката (выдать Энергетический меч, Емаг и 20 телекристаллов в Аплинке!)</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button id="joinAsGhostModalBtn" class="btn btn-warning">👻 Войти как Гост (Призрак)</button>
+        <button id="confirmJoinBtn" class="btn btn-success">🚀 Войти в игру за персонажа</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Station Event / CentComm Announcement -->
+  <div id="eventModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🚨 События станции и Центральное Командование</h3>
+        <button class="modal-close" data-close="eventModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="event-grid">
+          <button class="event-btn red" data-event="red_alert">🚨 Красный код</button>
+          <button class="event-btn blue" data-event="blue_alert">🛡️ Синий код</button>
+          <button class="event-btn green" data-event="green_alert">✅ Зелёный код</button>
+          <button class="event-btn hazard" data-event="plasma_leak">☣️ Утечка плазмы</button>
+          <button class="event-btn warn" data-event="power_outage">⚡ Сбой питания СМЭС</button>
+          <button class="event-btn syndicate" data-event="syndicate_threat">🗡️ Угроза Синдиката</button>
+          <button class="event-btn party" data-event="pizza_party">🍕 Доставка пиццы в Бар</button>
+          <button class="event-btn green" data-event="power_restore">🔧 Починить системы</button>
+        </div>
+
+        <label class="form-label">Своё объявление Центрального Командования</label>
+        <div class="control-row">
+          <input id="customCentcommInput" type="text" class="text-input" placeholder="Внимание экипажу NSS Saltern: на станцию прибывает ревизор ЦК..." />
+          <button id="sendCentcommBtn" class="btn btn-primary">Отправить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
