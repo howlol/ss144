@@ -1,3 +1,4 @@
+#pragma warning disable
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;

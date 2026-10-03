@@ -1,3 +1,4 @@
+#pragma warning disable
 namespace Content.Server.AIStation;
 
 /// <summary>

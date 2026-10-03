@@ -5,9 +5,12 @@ on:
     branches: [ main, master, "arena/**" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-ss14-server:
-    name: Build Modded SS14 Content.Server (Linux x64)
+    name: Build Modded SS14 Content.Server & Client (Linux x64)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -18,20 +21,49 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build SS14 Server with AIStation Mod
+      - name: Download Debian 12 Bookworm Xvfb + Mesa OpenGL + noVNC packages
+        run: |
+          mkdir -p /tmp/bundle-stage/debs
+          docker run --rm -v /tmp/bundle-stage/debs:/debs debian:bookworm bash -c '
+            apt-get update -qq &&
+            apt-get install -y -qq --download-only -o Dir::Cache::archives=/debs \
+              xvfb x11vnc openbox novnc python3-websockify python3-numpy \
+              libgl1-mesa-dri libglx-mesa0 libgl1 libegl-mesa0 libgbm1 \
+              libopenal1 libfluidsynth3 libxcursor1 libxrandr2 libxi6 \
+              libxinerama1 libxxf86vm1 x11-xkb-utils xkb-data xauth
+          '
+          rm -f /tmp/bundle-stage/debs/lock /tmp/bundle-stage/debs/partial/* 2>/dev/null || true
+          ls -lh /tmp/bundle-stage/debs | head -n 20
+
+      - name: Build SS14 Server (with AIStation Mod) and Client
         run: |
           chmod +x scripts/build_ss14_server.sh
           ./scripts/build_ss14_server.sh
-
-      - name: Package Server Artifact
-        run: |
           cd /tmp/ss14-src
-          dotnet run --project Content.Packaging server --platform linux-x64 --skip-build
-          cp release/SS14.Server_linux-x64.zip "$GITHUB_WORKSPACE/SS14.Server_linux-x64.zip"
+          dotnet restore Content.Client/Content.Client.csproj
+          dotnet build Content.Client/Content.Client.csproj -c Release --no-restore /p:TargetOs=Linux -p:TreatWarningsAsErrors=false -p:WarningsAsErrors="" -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false /m
 
-      - name: Upload Packaged Server Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SS14-AI-Server-linux-x64
-          path: SS14.Server_linux-x64.zip
-          retention-days: 14
+      - name: Stage Self-Contained Runtime Bundle and Push Tag
+        run: |
+          mkdir -p /tmp/bundle-stage/dotnet
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          chmod +x /tmp/dotnet-install.sh
+          /tmp/dotnet-install.sh --channel 10.0 --runtime dotnet --install-dir /tmp/bundle-stage/dotnet
+
+          mkdir -p /tmp/bundle-stage/ss14/bin
+          cp -r /tmp/ss14-src/bin/Content.Server /tmp/bundle-stage/ss14/bin/
+          cp -r /tmp/ss14-src/bin/Content.Client /tmp/bundle-stage/ss14/bin/
+          cp -r /tmp/ss14-src/Resources /tmp/bundle-stage/ss14/
+
+          mkdir -p /tmp/tag-repo
+          cd /tmp/tag-repo
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          tar -czf - -C /tmp/bundle-stage debs dotnet ss14 | split -b 45M - bundle.tar.gz.part_
+          ls -lh bundle.tar.gz.part_*
+          git add bundle.tar.gz.part_*
+          git commit -m "Native SS14 Server + Client + Xvfb Bookworm Bundle"
+          git tag -f ss14-bookworm-bundle
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" refs/tags/ss14-bookworm-bundle

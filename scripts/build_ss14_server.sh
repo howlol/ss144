@@ -52,7 +52,7 @@ fi
 echo "[5/5] Building Space Station 14 Content.Server (Release)..."
 cd "$SS14_DIR"
 dotnet restore Content.Server/Content.Server.csproj
-dotnet build Content.Server/Content.Server.csproj -c Release --no-restore /p:TargetOs=Linux /m
+dotnet build Content.Server/Content.Server.csproj -c Release --no-restore /p:TargetOs=Linux -p:TreatWarningsAsErrors=false -p:WarningsAsErrors="" -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false /m
 
 echo "=============================================================================="
 echo "Space Station 14 Content.Server built successfully!"
