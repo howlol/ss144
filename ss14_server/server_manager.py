@@ -118,9 +118,14 @@ class SS14StatusHTTPHandler(BaseHTTPRequestHandler):
                 "tags": ["lang:ru", "rp:mrp", "region:eu_e", "ai:crew"]
             }
         elif path == "/info":
-            # Extract Host header if available for seamless connect_address derivation
+            # Extract UDP connect address from active UDP tunnels if available
+            tunnel_mgr = getattr(server_mgr, "tunnel_manager", None)
+            udp_addr = tunnel_mgr.udp_game_url if tunnel_mgr and tunnel_mgr.udp_game_url else None
             host_header = self.headers.get("Host", "")
-            if host_header:
+
+            if udp_addr:
+                conn_addr = f"udp://{udp_addr}"
+            elif host_header:
                 conn_addr = f"udp://{host_header}"
             else:
                 conn_addr = f"udp://{pub_host}:{pub_port}" if pub_host != "127.0.0.1" else ""

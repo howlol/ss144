@@ -28,6 +28,7 @@ class TunnelManager:
         
         self.processes: List[subprocess.Popen] = []
         self.game_public_url = f"127.0.0.1:{game_port}"
+        self.udp_game_url: Optional[str] = None
         self.dashboard_public_url = f"http://127.0.0.1:{dashboard_port}"
         self.playit_claim_url: Optional[str] = None
         self.active_tunnels: Dict[str, str] = {}
@@ -78,7 +79,53 @@ class TunnelManager:
             logger.error(f"Error starting cloudflared: {e}")
             return None
 
+    def start_pinggy_udp(self, port: Optional[int] = None) -> Optional[str]:
+        """Starts Pinggy UDP tunnel over SSH (Zero setup, no account needed)."""
+        port = port or self.game_port
+        if not shutil.which("ssh"):
+            return None
+
+        try:
+            cmd = [
+                "ssh",
+                "-p", "443",
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "ServerAliveInterval=30",
+                "-o", "ExitOnForwardFailure=yes",
+                f"-R0:127.0.0.1:{port}",
+                "udp@a.pinggy.io"
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            self.processes.append(proc)
+
+            start_time = time.time()
+            while time.time() - start_time < 8:
+                line = proc.stdout.readline()
+                if not line:
+                    time.sleep(0.3)
+                    continue
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
+                match = re.search(r"(?:udp://)?([a-zA-Z0-9.-]+\.pinggy\.io:[0-9]+)", clean_line) or re.search(r"(a\.pinggy\.io:[0-9]+)", clean_line)
+                if match:
+                    addr = match.group(1).replace("udp://", "")
+                    self.udp_game_url = addr
+                    self.active_tunnels["pinggy_udp"] = addr
+                    print(f"⚡ [PINGGY UDP ИГРОВОЙ ТУННЕЛЬ]: udp://{addr}", flush=True)
+                    return addr
+
+            return None
+        except Exception as e:
+            logger.warning(f"Pinggy UDP error: {e}")
+            return None
+
     def start_pinggy_tcp(self, port: Optional[int] = None) -> Optional[str]:
+        """Starts Pinggy TCP tunnel over SSH (Zero setup, no account needed)."""
         """Starts Pinggy TCP tunnel over SSH (Zero setup, no account needed)."""
         port = port or self.game_port
         if not shutil.which("ssh"):
@@ -184,12 +231,16 @@ class TunnelManager:
                 logger.error(f"Failed to fetch playit: {e}")
                 return None
 
+        secret_path = "/tmp/playit_secret.toml"
+        os.makedirs(os.path.expanduser("~/.config/playit"), exist_ok=True)
+        os.makedirs("/etc/playit", exist_ok=True)
+
         try:
             import pty
             import select
             master, slave = pty.openpty()
             proc = subprocess.Popen(
-                [playit_bin, "run"],
+                [playit_bin, "--secret_path", secret_path, "run"],
                 stdin=slave,
                 stdout=slave,
                 stderr=slave,
@@ -327,16 +378,20 @@ class TunnelManager:
         # 2. Pinggy TCP
         t_pg = threading.Thread(target=lambda: self.start_pinggy_tcp(self.game_port))
         threads.append(t_pg)
-        
-        # 3. Bore TCP
+
+        # 3. Pinggy UDP (Zero setup UDP Game Tunnel)
+        t_pg_udp = threading.Thread(target=lambda: self.start_pinggy_udp(self.game_port))
+        threads.append(t_pg_udp)
+
+        # 4. Bore TCP
         t_bore = threading.Thread(target=lambda: self.start_bore_tcp(self.game_port))
         threads.append(t_bore)
 
-        # 4. Playit.gg
+        # 5. Playit.gg
         t_playit = threading.Thread(target=self.start_playit)
         threads.append(t_playit)
 
-        # 5. Ngrok (if token)
+        # 6. Ngrok (if token)
         if ngrok_token and len(ngrok_token.strip()) > 5:
             t_ng = threading.Thread(target=lambda: self.start_ngrok(ngrok_token, "tcp", self.game_port))
             threads.append(t_ng)
@@ -367,6 +422,7 @@ class TunnelManager:
     def get_tunnel_status(self) -> Dict[str, Any]:
         return {
             "game_public_url": self.game_public_url,
+            "udp_game_url": self.udp_game_url,
             "ss14_connect_link": f"ss14://{self.game_public_url}",
             "dashboard_public_url": self.dashboard_public_url,
             "available_game_links": self.available_game_links,

@@ -119,8 +119,15 @@ async def ss14_launcher_info(request: Request):
     """Returns official Space Station 14 launcher /info JSON format."""
     public_host = server_manager.public_host if server_manager else "127.0.0.1"
     public_port = server_manager.public_port if server_manager else 1212
+    udp_addr = tunnel_manager.udp_game_url if tunnel_manager and tunnel_manager.udp_game_url else None
     host_header = request.headers.get("host", "")
-    conn_addr = f"udp://{host_header}" if host_header else (f"udp://{public_host}:{public_port}" if public_host != "127.0.0.1" else "")
+
+    if udp_addr:
+        conn_addr = f"udp://{udp_addr}"
+    elif host_header:
+        conn_addr = f"udp://{host_header}"
+    else:
+        conn_addr = f"udp://{public_host}:{public_port}" if public_host != "127.0.0.1" else ""
 
     return JSONResponse({
         "connect_address": conn_addr,

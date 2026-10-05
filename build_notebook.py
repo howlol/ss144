@@ -206,21 +206,44 @@ Space Station 14 использует два сетевых протокола �
 - **TCP**: опрос статуса сервера лаунчером.
 - **UDP**: основной сетевой код игры (передвижение, взаимодействие с предметами, чат).
 
-Для надежного проброса **UDP + TCP** запускается **Playit.gg**, а для Пульта Режиссера — **Cloudflared HTTPS**.""")
+Запускаем набор туннелей с нативной поддержкой **UDP и TCP**:
+1. **Pinggy UDP & TCP** (0 регистрации, работает сразу через SSH).
+2. **Playit.gg (UDP+TCP)** (игровой туннель с DDoS защитой).
+3. **Cloudflared HTTPS** (для Пульта Режиссера).""")
 
     add_code("""tunnel_mgr = TunnelManager(game_port=GAME_PORT, dashboard_port=DASHBOARD_PORT)
 
 # Запуск туннелирования
-print("🌐 Запуск туннелей (Playit UDP+TCP, Cloudflared HTTPS, Pinggy, Bore)...")
+print("🌐 Запуск туннелей (Pinggy UDP/TCP, Playit UDP+TCP, Cloudflared HTTPS, Bore)...")
 tunnel_mgr.start_all_best_tunnels(ngrok_token=NGROK_AUTH_TOKEN)
 
-# Небольшая пауза для гарантированного вывода ссылки
-time.sleep(1.0)
-if tunnel_mgr.playit_claim_url:
-    print(f"👉 ПРЯМАЯ ССЫЛКА НА АКТИВАЦИЮ PLAYIT.GG: {tunnel_mgr.playit_claim_url}")
-else:
-    print("⚡ Туннели запущены. Если ссылка Playit появится позже, она отобразится в консоли.")
+# Небольшая пауза для гарантированного захвата адресов
+time.sleep(2.0)
+status = tunnel_mgr.get_tunnel_status()
+
+print("\\n" + "="*70)
+print("🚀 АКТИВНЫЕ ИГРОВЫЕ И ВЕБ-ТУННЕЛИ:")
+if status.get("playit_claim_url"):
+    print(f"⚡ [Playit.gg Ссылка активации]: {status['playit_claim_url']}")
+if status.get("udp_game_url"):
+    print(f"🎮 [Pinggy Нативный UDP адрес]: udp://{status['udp_game_url']}")
+print(f"🎬 [Пульт Режиссера Web]:      {status['dashboard_public_url']}")
+print("="*70 + "\\n")
 """)
+
+    # Step 5B (Optional Tailscale)
+    add_markdown("""## 🛡️ (Опционально) Альтернатива: Прямое P2P подключение через Tailscale (0ms Lag, WireGuard UDP)
+Если вы хотите играть напрямую без сторонних прокси-серверов с идеальным пингом:
+1. Запустите ячейку ниже.
+2. Отсканируйте появившийся QR-код или перейдите по ссылке для привязки к вашему бесплатному аккаунту Tailscale.
+3. В лаунчере Space Station 14 введите выданный IP: `100.x.y.z:1212`.""")
+
+    add_code("""# Запуск Tailscale для прямого P2P UDP+TCP подключения
+!curl -fsSL https://tailscale.com/install.sh | sh 2>/dev/null || true
+!tailscaled --tun=userspace-networking --socks5-server=localhost:1055 &
+import time; time.sleep(2)
+!tailscale up --qr --hostname=colab-ss14-station || true
+!tailscale ip -4 || true""")
 
     # Step 6
     add_markdown("""## ⚡ Шаг 6: МАСТЕР-ЗАПУСК ВСЕЙ СИСТЕМЫ В ОДИН КЛИК
