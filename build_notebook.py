@@ -206,22 +206,22 @@ Space Station 14 использует два сетевых протокола �
 - **TCP**: опрос статуса сервера лаунчером.
 - **UDP**: основной сетевой код игры (передвижение, взаимодействие с предметами, чат).
 
-Запускаем набор туннелей с нативной поддержкой **UDP и TCP**:
-1. **Pinggy UDP & TCP** (0 регистрации, работает сразу через SSH).
+Запускаем набор туннелей с поддержкой **UDP и TCP**:
+1. **Pinggy TCP / UDP** (мгновенный доступ через SSH).
 2. **Playit.gg (UDP+TCP)** (игровой туннель с DDoS защитой).
-3. **Cloudflared HTTPS** (для Пульта Режиссера).""")
+3. **Cloudflared HTTPS** (для Пульта Режиссера).
+4. **Bore TCP** (резервный прокси).""")
 
     add_code("""tunnel_mgr = TunnelManager(game_port=GAME_PORT, dashboard_port=DASHBOARD_PORT)
 
 # Запуск туннелирования
-print("🌐 Запуск туннелей (Pinggy UDP/TCP, Playit UDP+TCP, Cloudflared HTTPS, Bore)...")
+print("🌐 Запуск параллельных туннелей (Pinggy, Playit, Cloudflared, Bore)...")
 tunnel_mgr.start_all_best_tunnels(ngrok_token=NGROK_AUTH_TOKEN)
 
-# Небольшая пауза для гарантированного захвата адресов
-time.sleep(2.0)
+# Получение статуса всех туннелей
 status = tunnel_mgr.get_tunnel_status()
 
-print("\\n" + "="*70)
+print("\\n" + "="*72)
 print("🚀 АКТИВНЫЕ ИГРОВЫЕ И ВЕБ-ТУННЕЛИ:")
 if status.get("pinggy_tcp"):
     print(f"🎮 [Pinggy TCP Адрес]:        {status['pinggy_tcp']}")
@@ -232,7 +232,7 @@ if status.get("bore_tcp"):
 if status.get("playit_claim_url"):
     print(f"🔑 [Playit.gg Ссылка]:        {status['playit_claim_url']}")
 print(f"🎬 [Пульт Режиссера Web]:      {status['dashboard_public_url']}")
-print("="*70 + "\\n")
+print("="*72 + "\\n")
 """)
 
     # Step 5B (Optional Tailscale)

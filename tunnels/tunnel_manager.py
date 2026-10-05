@@ -370,10 +370,10 @@ class TunnelManager:
 
     def start_all_best_tunnels(self, ngrok_token: Optional[str] = None):
         """
-        Launches all tunnels concurrently in parallel threads.
-        Completes in ~3-4 seconds total instead of waiting sequentially.
+        Launches all tunnels concurrently in parallel threads and actively waits
+        until game tunnels (Pinggy UDP/TCP, Playit, Bore, Cloudflared) are established.
         """
-        print("🌐 Запуск параллельных туннелей (Cloudflared, Pinggy, Bore, Playit)...")
+        print("🌐 Запуск параллельных туннелей (Cloudflared, Pinggy TCP/UDP, Playit, Bore)...", flush=True)
         threads = []
         
         # 1. Cloudflared (Dashboard & HTTPS query)
@@ -405,11 +405,19 @@ class TunnelManager:
         for t in threads:
             t.start()
 
-        # Wait max 4 seconds for all to spin up
-        for t in threads:
-            t.join(timeout=4.0)
+        # Actively poll for tunnel discovery for up to 10 seconds
+        start_wait = time.time()
+        while time.time() - start_wait < 10.0:
+            # If we already have pinggy or playit or bore, give it another 1.5s to catch UDP as well
+            if self.active_tunnels.get("pinggy_tcp") or self.active_tunnels.get("pinggy_udp") or self.playit_claim_url:
+                time.sleep(1.5)
+                break
+            time.sleep(0.5)
 
-        print("⚡ Все доступные туннели успешно инициализированы!")
+        for t in threads:
+            t.join(timeout=1.0)
+
+        print("⚡ Все доступные туннели успешно инициализированы!", flush=True)
 
     def stop_all(self):
         """Stops all active tunnel background processes."""
