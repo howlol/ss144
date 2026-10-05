@@ -164,32 +164,44 @@ class SS14ServerManager:
                 while self.status_server_running:
                     try:
                         client, _ = sock.accept()
-                        data = client.recv(1024).decode("utf-8", errors="ignore")
+                        data = client.recv(2048).decode("utf-8", errors="ignore")
                         
-                        status_json = json.dumps({
+                        status_dict = {
                             "name": self.server_name,
                             "players": 30,
                             "soft_max_players": 64,
                             "panic_bunker": False,
                             "run_level": 1,
-                            "tags": ["ai", "roleplay", "director"]
-                        })
+                            "tags": ["lang:ru", "rp:mrp", "region:eu_e", "ai:crew"]
+                        }
                         
-                        info_json = json.dumps({
+                        info_dict = {
                             "connect_address": f"udp://{self.public_host}:{self.public_port}",
-                            "auth": {"mode": "Optional"}
-                        })
+                            "auth": {
+                                "mode": "Optional"
+                            },
+                            "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
+                            "links": [
+                                {
+                                    "name": "Director Deck",
+                                    "icon": "web",
+                                    "url": f"http://{self.public_host}:8000"
+                                }
+                            ]
+                        }
                         
-                        body = info_json if "GET /info" in data else status_json
-                        response = (
-                            "HTTP/1.1 200 OK\r\n"
-                            "Content-Type: application/json\r\n"
-                            "Access-Control-Allow-Origin: *\r\n"
-                            f"Content-Length: {len(body)}\r\n"
-                            "Connection: close\r\n\r\n"
-                            f"{body}"
-                        )
-                        client.sendall(response.encode("utf-8"))
+                        body_dict = info_dict if "GET /info" in data else status_dict
+                        body_bytes = json.dumps(body_dict, ensure_ascii=False).encode("utf-8")
+                        
+                        response_header = (
+                            f"HTTP/1.1 200 OK\r\n"
+                            f"Content-Type: application/json; charset=utf-8\r\n"
+                            f"Content-Length: {len(body_bytes)}\r\n"
+                            f"Access-Control-Allow-Origin: *\r\n"
+                            f"Connection: close\r\n\r\n"
+                        ).encode("utf-8")
+                        
+                        client.sendall(response_header + body_bytes)
                         client.close()
                     except socket.timeout:
                         continue

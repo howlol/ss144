@@ -102,8 +102,49 @@ async def get_dashboard(request: Request):
         context={"station_name": station_name}
     )
 
+@app.get("/status")
+async def ss14_launcher_status():
+    """Returns official Space Station 14 launcher /status JSON format."""
+    return JSONResponse({
+        "name": orchestrator.world.station_name if orchestrator else "SS14 AI Station",
+        "players": len(orchestrator.world.agents) if orchestrator else 30,
+        "soft_max_players": 64,
+        "panic_bunker": False,
+        "run_level": 1,
+        "tags": ["lang:ru", "rp:mrp", "region:eu_e", "ai:crew"]
+    })
+
+@app.get("/info")
+async def ss14_launcher_info():
+    """Returns official Space Station 14 launcher /info JSON format."""
+    public_host = server_manager.public_host if server_manager else "127.0.0.1"
+    public_port = server_manager.public_port if server_manager else 1212
+    return JSONResponse({
+        "connect_address": f"udp://{public_host}:{public_port}",
+        "auth": {
+            "mode": "Optional"
+        },
+        "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
+        "links": [
+            {
+                "name": "Director Deck",
+                "icon": "web",
+                "url": f"http://{public_host}:8000"
+            }
+        ]
+    })
+
 @app.get("/api/status")
 async def get_status():
+    """Returns current state snapshot."""
+    if not orchestrator:
+        return JSONResponse({"error": "Orchestrator not initialized"}, status_code=500)
+    data = orchestrator.get_state_snapshot()
+    if server_manager:
+        data["server_status"] = server_manager.get_status()
+    if tunnel_manager:
+        data["tunnel_status"] = tunnel_manager.get_tunnel_status()
+    return JSONResponse(data)
     """Returns current state snapshot."""
     if not orchestrator:
         return JSONResponse({"error": "Orchestrator not initialized"}, status_code=500)
