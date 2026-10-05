@@ -121,7 +121,9 @@ class TunnelManager:
             from pyngrok import ngrok, conf
             conf.get_default().auth_token = auth_token
             target_port = port or (self.game_port if tunnel_type == "tcp" else self.dashboard_port)
-            tunnel = ngrok.connect(target_port, proto=tunnel_type)
+            # Use explicit 127.0.0.1 IPv4 address to prevent [::1] IPv6 connection refused
+            bind_addr = f"127.0.0.1:{target_port}"
+            tunnel = ngrok.connect(bind_addr, proto=tunnel_type)
             public_url = tunnel.public_url
             if tunnel_type == "tcp":
                 # Convert 'tcp://0.tcp.ngrok.io:12345' to SS14 format
