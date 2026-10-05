@@ -223,10 +223,14 @@ status = tunnel_mgr.get_tunnel_status()
 
 print("\\n" + "="*70)
 print("🚀 АКТИВНЫЕ ИГРОВЫЕ И ВЕБ-ТУННЕЛИ:")
+if status.get("pinggy_tcp"):
+    print(f"🎮 [Pinggy TCP Адрес]:        {status['pinggy_tcp']}")
+if status.get("pinggy_udp"):
+    print(f"⚡ [Pinggy UDP Адрес]:        udp://{status['pinggy_udp']}")
+if status.get("bore_tcp"):
+    print(f"🌐 [Bore TCP Адрес]:          {status['bore_tcp']}")
 if status.get("playit_claim_url"):
-    print(f"⚡ [Playit.gg Ссылка активации]: {status['playit_claim_url']}")
-if status.get("udp_game_url"):
-    print(f"🎮 [Pinggy Нативный UDP адрес]: udp://{status['udp_game_url']}")
+    print(f"🔑 [Playit.gg Ссылка]:        {status['playit_claim_url']}")
 print(f"🎬 [Пульт Режиссера Web]:      {status['dashboard_public_url']}")
 print("="*70 + "\\n")
 """)
@@ -289,12 +293,20 @@ print(f'''
 🎮 ДОСТУПНЫЕ АДРЕСА ДЛЯ ВХОДА В SS14 (DIRECT CONNECT):
 ''')
 
+if tunnel_mgr.active_tunnels.get("pinggy_tcp"):
+    print(f"👉 Pinggy TCP: {tunnel_mgr.active_tunnels['pinggy_tcp']}  (в лаунчере: Direct Connect ➔ {tunnel_mgr.active_tunnels['pinggy_tcp']})")
+if tunnel_mgr.active_tunnels.get("pinggy_udp"):
+    print(f"👉 Pinggy UDP: {tunnel_mgr.active_tunnels['pinggy_udp']}")
+if tunnel_mgr.active_tunnels.get("bore_tcp"):
+    print(f"👉 Bore TCP:   {tunnel_mgr.active_tunnels['bore_tcp']}  (в лаунчере: Direct Connect ➔ {tunnel_mgr.active_tunnels['bore_tcp']})")
+if tunnel_mgr.active_tunnels.get("playit_game"):
+    print(f"👉 Playit.gg:  {tunnel_mgr.active_tunnels['playit_game']}")
+
 if game_links:
     for link in game_links:
         clean_addr = link.replace("ss14://", "").replace("ss14s://", "")
-        print(f"👉 Вариант: {clean_addr}  (в лаунчере: Direct Connect ➔ {clean_addr})")
-else:
-    print(f"👉 Адрес: {tunnel_mgr.game_public_url}")
+        if clean_addr not in str(tunnel_mgr.active_tunnels):
+            print(f"👉 Вариант: {clean_addr}  (в лаунчере: Direct Connect ➔ {clean_addr})")
 
 print(f'''
 ИНСТРУКЦИЯ ДЛЯ ВХОДА В ИГРУ:

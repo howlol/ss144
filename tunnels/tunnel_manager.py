@@ -90,8 +90,10 @@ class TunnelManager:
                 "ssh",
                 "-p", "443",
                 "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
                 "-o", "ServerAliveInterval=30",
                 "-o", "ExitOnForwardFailure=yes",
+                "-T",
                 f"-R0:127.0.0.1:{port}",
                 "udp@a.pinggy.io"
             ]
@@ -111,12 +113,12 @@ class TunnelManager:
                     time.sleep(0.3)
                     continue
                 clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
-                match = re.search(r"(?:udp://)?([a-zA-Z0-9.-]+\.pinggy\.io:[0-9]+)", clean_line) or re.search(r"(a\.pinggy\.io:[0-9]+)", clean_line)
+                match = re.search(r"(?:udp://)?([a-zA-Z0-9.-]+\.(?:pinggy\.link|pinggy\.io|pinggy\.biz):[0-9]+)", clean_line) or re.search(r"(a\.pinggy\.io:[0-9]+)", clean_line)
                 if match:
                     addr = match.group(1).replace("udp://", "")
                     self.udp_game_url = addr
                     self.active_tunnels["pinggy_udp"] = addr
-                    print(f"⚡ [PINGGY UDP ИГРОВОЙ ТУННЕЛЬ]: udp://{addr}", flush=True)
+                    print(f"\n⚡ [PINGGY UDP ИГРОВОЙ АДРЕС]: udp://{addr}", flush=True)
                     return addr
 
             return None
@@ -125,7 +127,6 @@ class TunnelManager:
             return None
 
     def start_pinggy_tcp(self, port: Optional[int] = None) -> Optional[str]:
-        """Starts Pinggy TCP tunnel over SSH (Zero setup, no account needed)."""
         """Starts Pinggy TCP tunnel over SSH (Zero setup, no account needed)."""
         port = port or self.game_port
         if not shutil.which("ssh"):
@@ -136,8 +137,10 @@ class TunnelManager:
                 "ssh",
                 "-p", "443",
                 "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
                 "-o", "ServerAliveInterval=30",
                 "-o", "ExitOnForwardFailure=yes",
+                "-T",
                 f"-R0:127.0.0.1:{port}",
                 "tcp@a.pinggy.io"
             ]
@@ -151,18 +154,20 @@ class TunnelManager:
             self.processes.append(proc)
 
             start_time = time.time()
-            while time.time() - start_time < 6:
+            while time.time() - start_time < 8:
                 line = proc.stdout.readline()
                 if not line:
                     time.sleep(0.3)
                     continue
-                match = re.search(r"(?:tcp://)?([a-zA-Z0-9.-]+\.pinggy\.io:[0-9]+)", line) or re.search(r"(a\.pinggy\.io:[0-9]+)", line)
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
+                match = re.search(r"(?:tcp://)?([a-zA-Z0-9.-]+\.(?:pinggy\.link|pinggy\.io|pinggy\.biz):[0-9]+)", clean_line) or re.search(r"(a\.pinggy\.io:[0-9]+)", clean_line)
                 if match:
                     addr = match.group(1).replace("tcp://", "")
                     self.game_public_url = addr
                     self.active_tunnels["pinggy_tcp"] = addr
-                    self.available_game_links.append(f"ss14://{addr}")
-                    logger.info(f"🚀 Pinggy TCP: {addr}")
+                    if f"ss14://{addr}" not in self.available_game_links:
+                        self.available_game_links.append(f"ss14://{addr}")
+                    print(f"🚀 [PINGGY TCP ТУННЕЛЬ]: {addr}", flush=True)
                     return addr
 
             return None
@@ -423,9 +428,13 @@ class TunnelManager:
         return {
             "game_public_url": self.game_public_url,
             "udp_game_url": self.udp_game_url,
+            "pinggy_tcp": self.active_tunnels.get("pinggy_tcp"),
+            "pinggy_udp": self.active_tunnels.get("pinggy_udp"),
+            "bore_tcp": self.active_tunnels.get("bore_tcp"),
+            "cloudflared_dashboard": self.active_tunnels.get("cloudflared_dashboard"),
+            "playit_claim_url": self.playit_claim_url,
             "ss14_connect_link": f"ss14://{self.game_public_url}",
             "dashboard_public_url": self.dashboard_public_url,
             "available_game_links": self.available_game_links,
-            "playit_claim_url": self.playit_claim_url,
             "active_tunnels": self.active_tunnels
         }
