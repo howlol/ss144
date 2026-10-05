@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nanotrasen OS - Space Station 14 AI Director Deck</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="theme-nt">
+
+  <!-- Top Navigation & Station Alert Banner -->
+  <header class="top-bar">
+    <div class="logo-group">
+      <div class="nt-badge">NT</div>
+      <div>
+        <h1 class="station-title" id="station-name-display">SPACE STATION 14 - AI DIRECTOR DECK</h1>
+        <div class="station-subtitle">CENTRAL COMMAND TELEMETRY & MULTI-AGENT NEURAL CORE</div>
+      </div>
+    </div>
+
+    <!-- Alert Indicator -->
+    <div class="alert-indicator-box alert-green" id="alert-banner">
+      <div class="alert-dot"></div>
+      <div class="alert-info">
+        <span class="alert-label">КОД ТРЕВОГИ:</span>
+        <span class="alert-value" id="alert-level-text">GREEN (ШТАТНЫЙ)</span>
+      </div>
+    </div>
+
+    <!-- Quick Stats & Actions -->
+    <div class="top-stats">
+      <div class="stat-pill">
+        <span class="stat-label">ЭКИПАЖ:</span>
+        <span class="stat-value" id="crew-count-display">30 / 30</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">ШАТТЛ:</span>
+        <span class="stat-value" id="shuttle-status-display">Ожидание</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">СЕТЬ:</span>
+        <span class="stat-value" id="power-status-display">100%</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">ИИ ЯДРО:</span>
+        <span class="stat-value" id="llm-status-display">Heuristic / API</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Connect Banner for Human Players -->
+  <div class="connect-hero-banner" id="connect-banner">
+    <div class="connect-info">
+      <span class="pulse-icon">🎮</span>
+      <div>
+        <strong>ПОДКЛЮЧЕНИЕ К ИГРЕ SPACE STATION 14 (ДЛЯ ЖИВЫХ ИГРОКОВ):</strong>
+        <span class="connect-url-text" id="connect-url-display">ss14://127.0.0.1:1212</span>
+      </div>
+    </div>
+    <div class="connect-actions">
+      <button class="btn btn-secondary btn-sm" onclick="copyConnectLink()">📋 Скопировать адрес</button>
+      <button class="btn btn-primary btn-sm" onclick="showConnectGuideModal()">❓ Как зайти в игру</button>
+    </div>
+  </div>
+
+  <!-- Main Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-roster')">👥 Экипаж ИИ (20-40 Агентов)</button>
+    <button class="tab-btn" onclick="switchTab('tab-map')">🌌 Карта Станции и Отсеки</button>
+    <button class="tab-btn" onclick="switchTab('tab-director')">🎬 Режим Режиссера (Director Deck)</button>
+    <button class="tab-btn" onclick="switchTab('tab-radio')">📻 Радиоэфир и Переговоры</button>
+    <button class="tab-btn" onclick="switchTab('tab-settings')">⚙️ Настройки OpenAI / LLM</button>
+  </nav>
+
+  <!-- Content Container -->
+  <main class="main-content">
+
+    <!-- TAB 1: AI CREW ROSTER -->
+    <section id="tab-roster" class="tab-pane active">
+      <div class="pane-header">
+        <div class="pane-title-group">
+          <h2>РЕЕСТР АВТОНОМНОГО ЭКИПАЖА СТАНЦИИ</h2>
+          <p>Все персонажи управляются ИИ, воспринимают мир через документы состояния, общаются и выполняют цели.</p>
+        </div>
+        <div class="roster-filters">
+          <input type="text" id="roster-search" placeholder="🔍 Поиск по имени, роли, отсеку..." oninput="filterRoster()">
+          <select id="roster-dept-filter" onchange="filterRoster()">
+            <option value="ALL">Все отделы</option>
+            <option value="Command">Командование (Command)</option>
+            <option value="Security">Служба Безопасности (Security)</option>
+            <option value="Engineering">Инженерия (Engineering)</option>
+            <option value="Medical">Медблок (Medical)</option>
+            <option value="Science">Научный отдел (Science)</option>
+            <option value="Cargo">Снабжение (Cargo)</option>
+            <option value="Service">Обслуживание (Service)</option>
+            <option value="ANTAG">🔴 Предатели Синдиката (Director Only)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="crew-grid" id="crew-grid-container">
+        <!-- Generated agent cards will be inserted here via JS -->
+      </div>
+    </section>
+
+    <!-- TAB 2: STATION MAP & ROOMS -->
+    <section id="tab-map" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title-group">
+          <h2>ТЕЛЕМЕТРИЯ И КАРТА ОТСЕКОВ СТАНЦИИ</h2>
+          <p>Интерактивная карта перемещений экипажа, состояния атмосферы, давления и объектов.</p>
+        </div>
+      </div>
+
+      <div class="map-layout">
+        <div class="station-map-grid" id="station-map-grid">
+          <!-- Rooms will be generated here -->
+        </div>
+
+        <div class="room-inspector-sidebar" id="room-inspector">
+          <h3>Инспектор Отсека</h3>
+          <p class="text-muted">Выберите отсек на карте для просмотра деталей.</p>
+          <div id="room-detail-content"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: DIRECTOR / STORYTELLER DECK -->
+    <section id="tab-director" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title-group">
+          <h2>ПУЛЬТ РЕЖИССЕРА / РАССКАЗЧИКА (DIRECTOR MODE)</h2>
+          <p>Управление событиями, катастрофами, телепатическими внушениями и раундами.</p>
+        </div>
+      </div>
+
+      <div class="director-grid">
+        <!-- Column 1: Disasters & Events -->
+        <div class="director-card">
+          <div class="card-header">
+            <h3>⚡ Запуск Катастроф и Событий</h3>
+          </div>
+          <div class="card-body">
+            <p class="text-sm">Активируйте сценарии для проверки реакции ИИ-экипажа:</p>
+            <div class="event-buttons-grid" id="events-buttons-container">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Station Alerts & Evacuation -->
+        <div class="director-card">
+          <div class="card-header">
+            <h3>🚨 Уровень Тревоги и Эвакуация</h3>
+          </div>
+          <div class="card-body">
+            <label class="form-label">Изменить Код Тревоги:</label>
+            <div class="alert-btn-group">
+              <button class="btn btn-alert-green" onclick="setStationAlert('Green (Зеленый - Норма)', 'Штатный режим')">ЗЕЛЕНЫЙ</button>
+              <button class="btn btn-alert-blue" onclick="setStationAlert('Blue (Синий - Повышенная готовность)', 'Угроза безопасности')">СИНИЙ</button>
+              <button class="btn btn-alert-red" onclick="setStationAlert('Red (Красный - Чрезвычайная ситуация)', 'Критическая авария')">КРАСНЫЙ</button>
+              <button class="btn btn-alert-delta" onclick="setStationAlert('Delta (Дельта - Ядерная угроза / Самоуничтожение)', 'Неминуемое уничтожение')">ДЕЛЬТА</button>
+            </div>
+
+            <hr class="divider">
+
+            <label class="form-label">Управление Аварийным Шаттлом:</label>
+            <div class="shuttle-btn-group">
+              <button class="btn btn-warning" onclick="callShuttle()">🚀 Вызвать Шаттл Эвакуации</button>
+              <button class="btn btn-secondary" onclick="recallShuttle()">⛔ Отозвать Шаттл</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 3: Mind Control & Telepathic Whispers -->
+        <div class="director-card">
+          <div class="card-header">
+            <h3>💭 Телепатическое Внушение Агенту</h3>
+          </div>
+          <div class="card-body">
+            <label class="form-label">Выберите Агента:</label>
+            <select id="whisper-agent-select" class="form-select">
+              <option value="">Загрузка списка экипажа...</option>
+            </select>
+
+            <label class="form-label mt-2">Текст мысли / внушения (прозвучит в голове персонажа):</label>
+            <textarea id="whisper-input" class="form-textarea" rows="3" placeholder="Например: 'Тебе кажется, что Капитан задумал неладное... нужно проверить мостик.'"></textarea>
+
+            <button class="btn btn-primary mt-2 w-100" onclick="sendSubconsciousWhisper()">🧠 Внушить мысль персонажу</button>
+          </div>
+        </div>
+
+        <!-- Column 4: Round & Crew Generation -->
+        <div class="director-card">
+          <div class="card-header">
+            <h3>🔄 Генерация Нового Раунда</h3>
+          </div>
+          <div class="card-body">
+            <label class="form-label">Количество ИИ-игроков на смене (20 - 40):</label>
+            <div class="slider-group">
+              <input type="range" id="crew-count-slider" min="20" max="40" value="30" oninput="document.getElementById('crew-slider-val').innerText = this.value">
+              <span id="crew-slider-val" class="slider-badge">30</span>
+            </div>
+            <p class="text-sm text-muted">При запуске нового раунда создается совершенно новый уникальный экипаж со своими чертами, профессиями, секретами и целями.</p>
+            <button class="btn btn-danger w-100 mt-2" onclick="startNewRound()">🎲 Сгенерировать и Запустить Новый Раунд</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Director Action Log -->
+      <div class="director-log-box mt-3">
+        <h3>Журнал Действий Режиссера и Катастроф</h3>
+        <div class="log-stream" id="director-log-stream"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: LIVE RADIO & CHAT -->
+    <section id="tab-radio" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title-group">
+          <h2>СТАНЦИОННЫЙ РАДИОЭФИР И ПЕРЕГОВОРЫ В РЕАЛЬНОМ ВРЕМЕНИ</h2>
+          <p>Все частоты радиосвязи, разговоры в отсеках и секретный канал Синдиката.</p>
+        </div>
+        <div class="channel-filter-group" id="radio-channel-filters">
+          <button class="btn-channel active" onclick="filterRadioChannel('ALL')">Все частоты</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Common [145.9]')">Общий [145.9]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Command [141.1]')">Командование [141.1]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Security [135.9]')">СБ [135.9]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Medical [139.9]')">Мед [139.9]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Engineering [137.9]')">Инженерия [137.9]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Science [138.9]')">Наука [138.9]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Cargo [136.9]')">Карго [136.9]</button>
+          <button class="btn-channel" onclick="filterRadioChannel('Service [134.9]')">Сервис [134.9]</button>
+          <button class="btn-channel btn-channel-syndie" onclick="filterRadioChannel('Syndicate Encrypted [???]')">🔴 Синдикат [???]</button>
+        </div>
+      </div>
+
+      <div class="radio-feed-container" id="radio-feed-container">
+        <!-- Radio messages inserted here -->
+      </div>
+    </section>
+
+    <!-- TAB 5: OPENAI / LLM SETTINGS -->
+    <section id="tab-settings" class="tab-pane">
+      <div class="pane-header">
+        <div class="pane-title-group">
+          <h2>НАСТРОЙКИ OPENAI-СОВМЕСТИМОГО ИИ</h2>
+          <p>Подключение к любому OpenAI API (OpenAI, OpenRouter, DeepSeek, Groq, Ollama, LM Studio).</p>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="form-group">
+          <label class="form-label">API Key (OpenAI / OpenRouter / DeepSeek):</label>
+          <input type="password" id="llm-api-key" class="form-input" placeholder="sk-..." autocomplete="off">
+          <small class="text-muted">Если ключ не указан, станция работает в быстром автономном эвристическом режиме.</small>
+        </div>
+
+        <div class="form-group mt-2">
+          <label class="form-label">Base URL (API Endpoint):</label>
+          <input type="text" id="llm-base-url" class="form-input" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1">
+          <small class="text-muted">Примеры: <code>https://openrouter.ai/api/v1</code>, <code>https://api.deepseek.com</code>, <code>http://localhost:11434/v1</code> (Ollama).</small>
+        </div>
+
+        <div class="form-group mt-2">
+          <label class="form-label">Модель (Model Name):</label>
+          <input type="text" id="llm-model" class="form-input" value="gpt-4o-mini" placeholder="gpt-4o-mini">
+          <small class="text-muted">Примеры: <code>gpt-4o-mini</code>, <code>gpt-4o</code>, <code>deepseek-chat</code>, <code>meta-llama/llama-3.1-70b-instruct</code>.</small>
+        </div>
+
+        <div class="mt-3">
+          <button class="btn btn-primary" onclick="saveLLMConfig()">💾 Сохранить и Применить Конфигурацию ИИ</button>
+          <span id="llm-save-status" class="status-msg"></span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: PERCEPTION DOCUMENT VIEWER ("Специальный Документ Восприятия") -->
+  <div class="modal-overlay" id="perception-modal" style="display: none;">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="perception-modal-title">ДОКУМЕНТ ВОСПРИЯТИЯ ПЕРСОНАЖА</h3>
+        <button class="modal-close-btn" onclick="closePerceptionModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="view-mode-toggle">
+          <button class="btn btn-sm btn-secondary active" id="btn-view-formatted" onclick="togglePerceptionView('formatted')">📄 Форматированный Документ</button>
+          <button class="btn btn-sm btn-secondary" id="btn-view-json" onclick="togglePerceptionView('json')">{ } Сырой JSON</button>
+        </div>
+        <pre class="perception-pre" id="perception-text-content"></pre>
+        <pre class="perception-pre" id="perception-json-content" style="display: none;"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closePerceptionModal()">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: HOW TO CONNECT TO SS14 -->
+  <div class="modal-overlay" id="connect-guide-modal" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>КАК ПОДКЛЮЧИТЬСЯ К СЕРВЕРУ SPACE STATION 14</h3>
+        <button class="modal-close-btn" onclick="closeConnectGuideModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <ol class="guide-list">
+          <li><strong>Скачайте официальный лаунчер Space Station 14</strong> с официального сайта <a href="https://spacestation14.com" target="_blank">spacestation14.com</a> или через Steam (игра полностью бесплатна).</li>
+          <li>Запустите лаунчер SS14 и перейдите во вкладку <strong>«Прямое подключение» (Direct Connect)</strong>.</li>
+          <li>Вставьте адрес сервера: <code id="guide-connect-url">ss14://127.0.0.1:1212</code></li>
+          <li>Нажмите <strong>«Подключиться» (Connect)</strong>.</li>
+          <li>Вы зайдете прямо на станцию и сможете ходить, говорить и взаимодействовать со всеми 20-40 ИИ-членами экипажа в реальном времени!</li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeConnectGuideModal()">Понятно</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

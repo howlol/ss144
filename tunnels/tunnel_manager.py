@@ -1,0 +1,159 @@
+"""
+Public Tunneling & Network Exposure Manager for Google Colab
+Manages Playit.gg (UDP/TCP game traffic), Cloudflared, Ngrok, and Localtunnel
+allowing anyone anywhere to connect to the Space Station 14 Server & Web Dashboard.
+"""
+
+import os
+import re
+import sys
+import time
+import shutil
+import urllib.request
+import subprocess
+import logging
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger("SS14_TunnelManager")
+
+class TunnelManager:
+    def __init__(self, game_port: int = 1212, dashboard_port: int = 8000):
+        self.game_port = game_port
+        self.dashboard_port = dashboard_port
+        self.playit_process: Optional[subprocess.Popen] = None
+        self.cloudflared_process: Optional[subprocess.Popen] = None
+        self.ngrok_process: Optional[subprocess.Popen] = None
+        
+        self.game_public_url = f"127.0.0.1:{game_port}"
+        self.dashboard_public_url = f"http://127.0.0.1:{dashboard_port}"
+        self.active_tunnels: Dict[str, str] = {}
+
+    def start_cloudflared(self, port: Optional[int] = None) -> Optional[str]:
+        """
+        Starts Cloudflared quick tunnel for the Web Dashboard (Zero configuration HTTPS).
+        """
+        port = port or self.dashboard_port
+        # Check if cloudflared is installed, if not try to install/download
+        if not shutil.which("cloudflared"):
+            logger.info("Downloading cloudflared binary...")
+            try:
+                cf_url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+                urllib.request.urlretrieve(cf_url, "/tmp/cloudflared")
+                os.chmod("/tmp/cloudflared", 0o755)
+                cf_bin = "/tmp/cloudflared"
+            except Exception as e:
+                logger.warning(f"Could not download cloudflared: {e}")
+                return None
+        else:
+            cf_bin = "cloudflared"
+
+        try:
+            cmd = [cf_bin, "tunnel", "--url", f"http://127.0.0.1:{port}"]
+            self.cloudflared_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+
+            # Read output to capture the trycloudflare.com URL
+            start_time = time.time()
+            while time.time() - start_time < 20:
+                line = self.cloudflared_process.stdout.readline()
+                if not line:
+                    time.sleep(0.5)
+                    continue
+                match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+                if match:
+                    url = match.group(0)
+                    self.dashboard_public_url = url
+                    self.active_tunnels["cloudflared_dashboard"] = url
+                    logger.info(f"🚀 Cloudflared Dashboard Tunnel Active: {url}")
+                    return url
+
+            logger.warning("Cloudflared tunnel startup timed out.")
+            return None
+        except Exception as e:
+            logger.error(f"Error starting cloudflared: {e}")
+            return None
+
+    def start_playit(self) -> Optional[str]:
+        """
+        Sets up Playit.gg for SS14 UDP game traffic.
+        Playit is ideal for game servers in Colab because it maps UDP & TCP ports.
+        """
+        if not shutil.which("playit"):
+            logger.info("Downloading playit.gg CLI...")
+            try:
+                playit_url = "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64"
+                urllib.request.urlretrieve(playit_url, "/tmp/playit")
+                os.chmod("/tmp/playit", 0o755)
+                playit_bin = "/tmp/playit"
+            except Exception as e:
+                logger.warning(f"Could not download playit: {e}")
+                return None
+        else:
+            playit_bin = "playit"
+
+        try:
+            cmd = [playit_bin, "run"]
+            self.playit_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            logger.info("Playit.gg started. Check console for claim URL if first time setup.")
+            self.active_tunnels["playit"] = "Running (Check playit claim URL or agent status)"
+            return "playit_active"
+        except Exception as e:
+            logger.error(f"Error starting playit: {e}")
+            return None
+
+    def start_ngrok(self, auth_token: str, tunnel_type: str = "tcp", port: Optional[int] = None) -> Optional[str]:
+        """
+        Starts Ngrok TCP (for game) or HTTP (for dashboard) if auth_token is provided.
+        """
+        if not auth_token:
+            return None
+        try:
+            # Install pyngrok if available
+            from pyngrok import ngrok, conf
+            conf.get_default().auth_token = auth_token
+            target_port = port or (self.game_port if tunnel_type == "tcp" else self.dashboard_port)
+            tunnel = ngrok.connect(target_port, proto=tunnel_type)
+            public_url = tunnel.public_url
+            if tunnel_type == "tcp":
+                # Convert 'tcp://0.tcp.ngrok.io:12345' to SS14 format
+                clean_addr = public_url.replace("tcp://", "")
+                self.game_public_url = clean_addr
+                self.active_tunnels["ngrok_game"] = clean_addr
+                logger.info(f"🚀 Ngrok Game Tunnel Active: {clean_addr}")
+            else:
+                self.dashboard_public_url = public_url
+                self.active_tunnels["ngrok_dashboard"] = public_url
+                logger.info(f"🚀 Ngrok Dashboard Tunnel Active: {public_url}")
+            return public_url
+        except Exception as e:
+            logger.warning(f"Ngrok connection failed: {e}")
+            return None
+
+    def stop_all(self):
+        """Stops all active tunnel background processes."""
+        for proc in [self.cloudflared_process, self.playit_process, self.ngrok_process]:
+            if proc and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except Exception:
+                    proc.kill()
+        self.active_tunnels.clear()
+        logger.info("All tunnels stopped.")
+
+    def get_tunnel_status(self) -> Dict[str, Any]:
+        return {
+            "game_public_url": self.game_public_url,
+            "ss14_connect_link": f"ss14://{self.game_public_url}",
+            "dashboard_public_url": self.dashboard_public_url,
+            "active_tunnels": self.active_tunnels
+        }
