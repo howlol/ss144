@@ -10,6 +10,7 @@ import json
 import socket
 import asyncio
 import threading
+import time
 import shutil
 import urllib.request
 import zipfile
@@ -43,7 +44,7 @@ type = "Single"
 
 [auth]
 mode = "Optional" # Allows guest players to connect without central auth
-allow_guests = True
+allow_guests = true
 
 [rcon]
 enabled = true
@@ -204,27 +205,53 @@ class SS14ServerManager:
         self.status_server_thread.start()
 
     def start_server(self) -> bool:
-        """Launches Robust.Server in background or activates status bridge."""
+        """Launches Robust.Server in background with log monitoring."""
         exec_path = os.path.join(self.server_dir, "Robust.Server")
         self.write_configuration()
 
         if os.path.exists(exec_path):
+            log_path = os.path.join(self.server_dir, "logs", "server_stdout.log")
+            log_file = open(log_path, "w")
             cmd = [
                 exec_path,
                 "--config-file", os.path.join(self.server_dir, "server_config.toml"),
                 "--data-dir", os.path.join(self.server_dir, "data")
             ]
 
-            logger.info(f"Starting SS14 Server: {' '.join(cmd)}")
-            log_file = open(os.path.join(self.server_dir, "logs", "server_stdout.log"), "w")
-            self.process = subprocess.Popen(
-                cmd,
-                cwd=self.server_dir,
-                stdout=log_file,
-                stderr=subprocess.STDOUT
-            )
-            logger.info(f"SS14 Server process started with PID: {self.process.pid}")
-            return True
+            logger.info(f"Starting SS14 Robust.Server: {' '.join(cmd)}")
+            try:
+                self.process = subprocess.Popen(
+                    cmd,
+                    cwd=self.server_dir,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT
+                )
+                logger.info(f"SS14 Server process started with PID: {self.process.pid}")
+
+                # Monitor process for quick failure
+                def _check_process():
+                    time.sleep(3.0)
+                    if self.process and self.process.poll() is not None:
+                        exit_code = self.process.poll()
+                        logger.warning(f"Robust.Server exited with code {exit_code}. Checking logs...")
+                        try:
+                            with open(log_path, "r") as f:
+                                tail = f.readlines()[-15:]
+                                print("--- [Robust.Server Log Output] ---")
+                                for line in tail:
+                                    print(line.strip())
+                                print("----------------------------------")
+                        except Exception:
+                            pass
+                        logger.info("Activating fallback status responder on port 1212...")
+                        self.start_fallback_status_server()
+
+                threading.Thread(target=_check_process, daemon=True).start()
+                return True
+            except Exception as e:
+                logger.error(f"Failed to start Robust.Server: {e}")
+                self.start_fallback_status_server()
+                return True
         else:
             logger.info("Robust.Server binary not found; starting built-in status responder on port 1212.")
             self.start_fallback_status_server()

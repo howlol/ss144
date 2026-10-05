@@ -41,10 +41,11 @@ def create_notebook():
 - 🎮 **Любой игрок может зайти на сервер**: Прямое подключение через стандартный лаунчер SS14!""")
 
     # Step 1
-    add_markdown("""## 📦 Шаг 1: Установка системных зависимостей и библиотек Python
+    add_markdown("""## 📦 Шаг 1: Установка системных зависимостей, .NET и библиотек Python
 Устанавливаем необходимые пакеты: `fastapi`, `uvicorn`, `aiohttp`, `websockets`, `pydantic`, `jinja2`, `pyngrok`, системные библиотеки .NET и утилиты туннелирования.""")
 
-    add_code("""# Установка Python-пакетов и системных утилит
+    add_code("""# Установка системных пакетов, .NET runtime и Python библиотек
+!apt-get update -qq && apt-get install -y -qq libicu-dev libssl-dev dotnet-runtime-8.0 2>/dev/null || true
 !pip install --quiet fastapi uvicorn aiohttp websockets jinja2 requests pydantic pyngrok httpx nest-asyncio
 
 import os
@@ -59,7 +60,7 @@ import zipfile
 import subprocess
 import shutil
 
-print("✅ Системные зависимости успешно установлены!")""")
+print("✅ Системные зависимости и .NET успешно установлены!")""")
 
     # Step 2
     add_markdown("""## ⚙️ Шаг 2: Конфигурация параметров OpenAI / LLM
@@ -154,7 +155,7 @@ def download_ss14_server():
         print(f"ℹ️ Статус сервера: {e} (Будет активирован встроенный обработчик статуса и нейро-мост)")
         return False
 
-# Попытка загрузки сервера
+# Загрузка сервера
 download_ss14_server()""")
 
     # Step 4
@@ -242,14 +243,14 @@ print(f'''
 ========================================================================
 👥 Количество ИИ-персонажей: {len(orchestrator.world.agents)}
 🧠 Модель ИИ:                {OPENAI_MODEL} ({OPENAI_BASE_URL})
-🎮 Адрес для входа в SS14:   ss14://{game_url} (или {game_url})
+🎮 Адрес для входа в SS14:   {game_url} (или ss14://{game_url})
 🎬 Пульт Режиссера (Web UI): {dash_url}
 ========================================================================
 
 ИНСТРУКЦИЯ ДЛЯ ВХОДА В ИГРУ:
 1. Откройте лаунчер Space Station 14 на вашем компьютере.
 2. Нажмите «Прямое подключение» (Direct Connect).
-3. Введите адрес: {game_url} (если используете ngrok, например 0.tcp.ngrok.io:12345).
+3. Введите адрес: {game_url} (например 4.tcp.ngrok.io:27945 или Playit адрес).
 4. Нажмите Connect и заходите на станцию к ИИ-экипажу!
 ''')
 
