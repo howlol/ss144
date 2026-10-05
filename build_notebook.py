@@ -202,11 +202,11 @@ print("🧠 Модули ИИ-экипажа, Документов Воспри�
 
     # Step 5
     add_markdown("""## 🌐 Шаг 5: Запуск Мульти-Туннелей для Входа в Игру (UDP+TCP) и Веб-Пульта
-Space Station 14 использует **два сетевых протокола**:
-1. **TCP (порт 1212)**: для проверки статуса сервера и манифеста в лаунчере.
-2. **UDP (порт 1212)**: для передачи игровых пакетов и перемещения по станции в самой игре.
+Space Station 14 использует два сетевых протокола на порту 1212:
+- **TCP**: опрос статуса сервера лаунчером.
+- **UDP**: основной сетевой код игры (передвижение, взаимодействие с предметами, чат).
 
-*Для гарантированного подключения используйте ссылку **Playit.gg**, которая выведется ниже.*""")
+Для надежного проброса **UDP + TCP** запускается **Playit.gg**, а для Пульта Режиссера — **Cloudflared HTTPS**.""")
 
     add_code("""tunnel_mgr = TunnelManager(game_port=GAME_PORT, dashboard_port=DASHBOARD_PORT)
 
@@ -214,10 +214,12 @@ Space Station 14 использует **два сетевых протокола
 print("🌐 Запуск туннелей (Playit UDP+TCP, Cloudflared HTTPS, Pinggy, Bore)...")
 tunnel_mgr.start_all_best_tunnels(ngrok_token=NGROK_AUTH_TOKEN)
 
-# Если ссылка не появилась автоматически, запускаем прямой запрос Playit
-if not tunnel_mgr.playit_claim_url:
-    print("⏳ Ожидание генерации ссылки Playit.gg...")
-    tunnel_mgr.start_playit()
+# Небольшая пауза для гарантированного вывода ссылки
+time.sleep(1.0)
+if tunnel_mgr.playit_claim_url:
+    print(f"👉 ПРЯМАЯ ССЫЛКА НА АКТИВАЦИЮ PLAYIT.GG: {tunnel_mgr.playit_claim_url}")
+else:
+    print("⚡ Туннели запущены. Если ссылка Playit появится позже, она отобразится в консоли.")
 """)
 
     # Step 6
