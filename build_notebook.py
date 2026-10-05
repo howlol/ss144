@@ -41,13 +41,17 @@ def create_notebook():
 - 🎮 **Любой игрок может зайти на сервер**: Прямое подключение через стандартный лаунчер SS14!""")
 
     # Step 1
-    add_markdown("""## 📦 Шаг 1: Установка системных зависимостей, .NET 10 и библиотек Python
-Устанавливаем .NET 10 (необходим для запуска Robust.Server Space Station 14), системные библиотеки и Python-пакеты.""")
+    add_markdown("""## 📦 Шаг 1: Установка системных зависимостей, .NET 10, Playit.gg и библиотек Python
+Устанавливаем .NET 10 (необходим для запуска Robust.Server Space Station 14), игровой агент туннелирования **Playit.gg (UDP+TCP)**, системные библиотеки и Python-пакеты.""")
 
-    add_code("""# Установка .NET 10, системных библиотек и Python-пакетов
-!apt-get update -qq && apt-get install -y -qq libicu-dev libssl-dev openssh-client 2>/dev/null || true
+    add_code("""# Установка .NET 10, Playit.gg (UDP+TCP), системных библиотек и Python-пакетов
+!apt-get update -qq && apt-get install -y -qq libicu-dev libssl-dev openssh-client curl wget 2>/dev/null || true
 !wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh && chmod +x /tmp/dotnet-install.sh && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet --architecture x64 || true
 !ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet || true
+
+# Установка Playit.gg для надежного проброса игрового UDP-трафика
+!wget -q https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64 -O /usr/local/bin/playit && chmod +x /usr/local/bin/playit || true
+
 !pip install --quiet fastapi uvicorn aiohttp websockets jinja2 requests pydantic pyngrok httpx nest-asyncio
 
 import os
@@ -62,7 +66,7 @@ import zipfile
 import subprocess
 import shutil
 
-print("✅ .NET 10 и системные зависимости успешно установлены!")""")
+print("✅ .NET 10, Playit.gg и системные зависимости успешно установлены!")""")
 
     # Step 2
     add_markdown("""## ⚙️ Шаг 2: Конфигурация параметров OpenAI / LLM
@@ -202,15 +206,19 @@ Space Station 14 использует **два сетевых протокола
 1. **TCP (порт 1212)**: для проверки статуса сервера и манифеста в лаунчере.
 2. **UDP (порт 1212)**: для передачи игровых пакетов и перемещения по станции в самой игре.
 
-*Для игры через интернет используется **Playit.gg** (поддерживает одновременно UDP и TCP) или **Tailscale**.*""")
+*Для гарантированного подключения используйте ссылку **Playit.gg**, которая выведется ниже.*""")
 
     add_code("""tunnel_mgr = TunnelManager(game_port=GAME_PORT, dashboard_port=DASHBOARD_PORT)
 
-# Запуск полного набора туннелей
-print("🌐 Запуск мульти-провайдерного туннелирования (Playit UDP+TCP, Cloudflared HTTPS, Pinggy, Bore)...")
+# Запуск туннелирования
+print("🌐 Запуск туннелей (Playit UDP+TCP, Cloudflared HTTPS, Pinggy, Bore)...")
 tunnel_mgr.start_all_best_tunnels(ngrok_token=NGROK_AUTH_TOKEN)
 
-print("\\n✅ Туннелирование инициализировано! Если вы используете Playit.gg — перейдите по ссылке активации выше.")""")
+# Если ссылка не появилась автоматически, запускаем прямой запрос Playit
+if not tunnel_mgr.playit_claim_url:
+    print("⏳ Ожидание генерации ссылки Playit.gg...")
+    tunnel_mgr.start_playit()
+""")
 
     # Step 6
     add_markdown("""## ⚡ Шаг 6: МАСТЕР-ЗАПУСК ВСЕЙ СИСТЕМЫ В ОДИН КЛИК

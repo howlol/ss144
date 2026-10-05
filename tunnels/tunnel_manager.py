@@ -169,21 +169,20 @@ class TunnelManager:
             return None
 
     def start_playit(self) -> Optional[str]:
-        """Sets up Playit.gg for SS14 UDP/TCP game traffic."""
-        playit_bin = "/tmp/playit"
-        if not os.path.exists(playit_bin) and not shutil.which("playit"):
+        """Sets up Playit.gg for SS14 UDP/TCP game traffic and waits for the claim URL."""
+        playit_bin = shutil.which("playit") or "/usr/local/bin/playit" or "/tmp/playit"
+        if not shutil.which("playit") and not os.path.exists(playit_bin):
             try:
-                playit_url = "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64"
-                urllib.request.urlretrieve(playit_url, "/tmp/playit")
-                os.chmod("/tmp/playit", 0o755)
+                subprocess.run("wget -q https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64 -O /tmp/playit && chmod +x /tmp/playit", shell=True, timeout=30)
+                if os.path.exists("/tmp/playit"):
+                    playit_bin = "/tmp/playit"
             except Exception as e:
-                logger.error(f"Failed to download playit binary: {e}")
+                logger.error(f"Failed to fetch playit: {e}")
                 return None
 
         try:
-            cmd = [playit_bin if os.path.exists(playit_bin) else "playit", "run"]
             proc = subprocess.Popen(
-                cmd,
+                [playit_bin, "run"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -191,33 +190,48 @@ class TunnelManager:
             )
             self.processes.append(proc)
 
-            def _monitor():
-                for line in iter(proc.stdout.readline, ''):
-                    if not line:
+            # Read initial output to capture claim link immediately
+            start_time = time.time()
+            claim_found = False
+            while time.time() - start_time < 10:
+                line = proc.stdout.readline()
+                if not line:
+                    time.sleep(0.2)
+                    continue
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line).strip()
+                claim_match = re.search(r"https?://playit\.gg/claim/[a-zA-Z0-9]+", clean_line)
+                if claim_match:
+                    self.playit_claim_url = claim_match.group(0)
+                    if not self.playit_claim_url.startswith("http"):
+                        self.playit_claim_url = "https://" + self.playit_claim_url
+                    self.active_tunnels["playit_claim"] = self.playit_claim_url
+                    claim_found = True
+                    print("\n" + "="*70, flush=True)
+                    print(f"⚡ [PLAYIT.GG АКТИВАЦИЯ ИГРОВОГО ТУННЕЛЯ (UDP+TCP)]:", flush=True)
+                    print(f"👉 ПЕРЕЙДИТЕ ПО ССЫЛКЕ: {self.playit_claim_url}", flush=True)
+                    print("1. Нажмите «Add Tunnel» ➔ выберите «Custom (TCP+UDP)»", flush=True)
+                    print(f"2. Укажите Local Port: {self.game_port}", flush=True)
+                    print("3. Нажмите «Create Tunnel» ➔ скопируйте выданный адрес (например: xxx.gl.at.ply.gg:12345)", flush=True)
+                    print("="*70 + "\n", flush=True)
+                    break
+
+            def _background_listener():
+                for raw_line in iter(proc.stdout.readline, ''):
+                    if not raw_line:
                         break
-                    claim_match = re.search(r"https://playit\.gg/claim/[a-zA-Z0-9]+", line)
-                    if claim_match:
-                        self.playit_claim_url = claim_match.group(0)
-                        self.active_tunnels["playit_claim"] = self.playit_claim_url
-                        print(f"\n" + "="*70)
-                        print(f"⚡ [PLAYIT.GG АКТИВАЦИЯ ТУННЕЛЯ (UDP + TCP ДЛЯ ИГРЫ)]:")
-                        print(f"👉 Откройте ссылку для привязки: {self.playit_claim_url}")
-                        print(f"1. Выберите тип туннеля: Custom (TCP+UDP)")
-                        print(f"2. Укажите локальный порт: {self.game_port}")
-                        print(f"3. Нажмите Create Tunnel — лаунчер сразу сможет зайти в игру!")
-                        print("="*70 + "\n")
-                    
-                    tunnel_match = re.search(r"([a-zA-Z0-9.-]+\.playit\.gg:[0-9]+)", line) or re.search(r"([a-zA-Z0-9.-]+\.gl\.joinmc\.link:[0-9]+)", line) or re.search(r"([a-zA-Z0-9.-]+\.gl\.at\.ply\.gg:[0-9]+)", line)
+                    c_line = re.sub(r'\x1b\[[0-9;]*m', '', raw_line).strip()
+                    tunnel_match = re.search(r"([a-zA-Z0-9.-]+\.(?:ply\.gg|playit\.gg|joinmc\.link):[0-9]+)", c_line)
                     if tunnel_match:
                         addr = tunnel_match.group(1)
                         self.game_public_url = addr
                         self.active_tunnels["playit_game"] = addr
-                        self.available_game_links.append(f"ss14://{addr}")
-                        print(f"🎮 [PLAYIT.GG СЕРВЕР ГОТОВ К ПОДКЛЮЧЕНИЮ]: {addr}")
+                        if f"ss14://{addr}" not in self.available_game_links:
+                            self.available_game_links.append(f"ss14://{addr}")
+                        print(f"\n🎮 [PLAYIT.GG АДРЕС ДЛЯ DIRECT CONNECT]: {addr}\n", flush=True)
 
-            threading.Thread(target=_monitor, daemon=True).start()
+            threading.Thread(target=_background_listener, daemon=True).start()
             self.active_tunnels["playit"] = "Running"
-            return "playit_active"
+            return self.playit_claim_url or "playit_active"
         except Exception as e:
             logger.error(f"Error starting playit: {e}")
             return None
