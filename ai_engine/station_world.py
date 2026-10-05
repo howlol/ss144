@@ -45,7 +45,7 @@ STATION_MAP = {
         "breached": False,
         "powered": True
     },
-    "Chief Engineer Office (Кабинет Старшего Инженерa)": {
+    "Chief Engineer Office (Кабинет Старшего Инженера)": {
         "dept": "Command",
         "connections": ["Engineering Workshop (Мастерская Инженеров)"],
         "items": ["CE Blueprint Desk", "Advanced Hardsuit Locker", "Power Grid Telemetry Console"],

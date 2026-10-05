@@ -41,11 +41,13 @@ def create_notebook():
 - 🎮 **Любой игрок может зайти на сервер**: Прямое подключение через стандартный лаунчер SS14!""")
 
     # Step 1
-    add_markdown("""## 📦 Шаг 1: Установка системных зависимостей, .NET и библиотек Python
-Устанавливаем необходимые пакеты: `fastapi`, `uvicorn`, `aiohttp`, `websockets`, `pydantic`, `jinja2`, `pyngrok`, системные библиотеки .NET и утилиты туннелирования.""")
+    add_markdown("""## 📦 Шаг 1: Установка системных зависимостей, .NET 10 и библиотек Python
+Устанавливаем .NET 10 (необходим для запуска Robust.Server Space Station 14), системные библиотеки и Python-пакеты.""")
 
-    add_code("""# Установка системных пакетов, .NET runtime и Python библиотек
-!apt-get update -qq && apt-get install -y -qq libicu-dev libssl-dev dotnet-runtime-8.0 2>/dev/null || true
+    add_code("""# Установка .NET 10, системных библиотек и Python-пакетов
+!apt-get update -qq && apt-get install -y -qq libicu-dev libssl-dev 2>/dev/null || true
+!wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh && chmod +x /tmp/dotnet-install.sh && /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet --architecture x64 || true
+!ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet || true
 !pip install --quiet fastapi uvicorn aiohttp websockets jinja2 requests pydantic pyngrok httpx nest-asyncio
 
 import os
@@ -60,7 +62,7 @@ import zipfile
 import subprocess
 import shutil
 
-print("✅ Системные зависимости и .NET успешно установлены!")""")
+print("✅ .NET 10 и системные зависимости успешно установлены!")""")
 
     # Step 2
     add_markdown("""## ⚙️ Шаг 2: Конфигурация параметров OpenAI / LLM

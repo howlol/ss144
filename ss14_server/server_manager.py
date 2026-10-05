@@ -219,12 +219,23 @@ class SS14ServerManager:
             ]
 
             logger.info(f"Starting SS14 Robust.Server: {' '.join(cmd)}")
+            env = os.environ.copy()
+            dotnet_dirs = ["/usr/share/dotnet", "/usr/lib/dotnet", os.path.expanduser("~/.dotnet"), "/root/.dotnet"]
+            for d in dotnet_dirs:
+                if os.path.exists(d):
+                    env["DOTNET_ROOT"] = d
+                    env["PATH"] = f"{d}:{env.get('PATH', '')}"
+                    break
+            env["DOTNET_ROLL_FORWARD"] = "Major"
+            env["DOTNET_ROLL_FORWARD_ON_NO_CANDIDATE_FX"] = "2"
+
             try:
                 self.process = subprocess.Popen(
                     cmd,
                     cwd=self.server_dir,
                     stdout=log_file,
-                    stderr=subprocess.STDOUT
+                    stderr=subprocess.STDOUT,
+                    env=env
                 )
                 logger.info(f"SS14 Server process started with PID: {self.process.pid}")
 
