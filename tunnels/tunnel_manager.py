@@ -11,6 +11,7 @@ import time
 import shutil
 import urllib.request
 import subprocess
+import threading
 import logging
 from typing import Dict, Any, Optional
 
@@ -26,6 +27,7 @@ class TunnelManager:
         
         self.game_public_url = f"127.0.0.1:{game_port}"
         self.dashboard_public_url = f"http://127.0.0.1:{dashboard_port}"
+        self.playit_claim_url: Optional[str] = None
         self.active_tunnels: Dict[str, str] = {}
 
     def start_cloudflared(self, port: Optional[int] = None) -> Optional[str]:
@@ -33,7 +35,6 @@ class TunnelManager:
         Starts Cloudflared quick tunnel for the Web Dashboard (Zero configuration HTTPS).
         """
         port = port or self.dashboard_port
-        # Check if cloudflared is installed, if not try to install/download
         if not shutil.which("cloudflared"):
             logger.info("Downloading cloudflared binary...")
             try:
@@ -56,7 +57,6 @@ class TunnelManager:
                 text=True
             )
 
-            # Read output to capture the trycloudflare.com URL
             start_time = time.time()
             while time.time() - start_time < 20:
                 line = self.cloudflared_process.stdout.readline()
@@ -79,8 +79,8 @@ class TunnelManager:
 
     def start_playit(self) -> Optional[str]:
         """
-        Sets up Playit.gg for SS14 UDP game traffic.
-        Playit is ideal for game servers in Colab because it maps UDP & TCP ports.
+        Sets up Playit.gg for SS14 UDP/TCP game traffic.
+        Playit maps UDP ports cleanly for game clients in Google Colab.
         """
         if not shutil.which("playit"):
             logger.info("Downloading playit.gg CLI...")
@@ -101,10 +101,35 @@ class TunnelManager:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True
+                text=True,
+                bufsize=1
             )
-            logger.info("Playit.gg started. Check console for claim URL if first time setup.")
-            self.active_tunnels["playit"] = "Running (Check playit claim URL or agent status)"
+
+            def _monitor_playit_output():
+                for line in iter(self.playit_process.stdout.readline, ''):
+                    if not line:
+                        break
+                    # Check for claim URL
+                    claim_match = re.search(r"https://playit\.gg/claim/[a-zA-Z0-9]+", line)
+                    if claim_match:
+                        self.playit_claim_url = claim_match.group(0)
+                        self.active_tunnels["playit_claim"] = self.playit_claim_url
+                        print(f"\n⚡ [PLAYIT.GG АВТОРИЗАЦИЯ ТУННЕЛЯ]: Перейдите по ссылке для привязки: {self.playit_claim_url}\n")
+                    
+                    # Check for assigned tunnel address
+                    tunnel_match = re.search(r"([a-zA-Z0-9.-]+\.playit\.gg:[0-9]+)", line) or re.search(r"([a-zA-Z0-9.-]+\.gl\.joinmc\.link:[0-9]+)", line)
+                    if tunnel_match:
+                        addr = tunnel_match.group(1)
+                        self.game_public_url = addr
+                        self.active_tunnels["playit_game"] = addr
+                        logger.info(f"🚀 Playit.gg Game Address Assigned: {addr}")
+
+            t = threading.Thread(target=_monitor_playit_output, daemon=True)
+            t.start()
+            
+            # Brief wait to catch early claim URL
+            time.sleep(2.0)
+            self.active_tunnels["playit"] = "Running (Playit Agent active)"
             return "playit_active"
         except Exception as e:
             logger.error(f"Error starting playit: {e}")
@@ -117,7 +142,6 @@ class TunnelManager:
         if not auth_token:
             return None
         try:
-            # Install pyngrok if available
             from pyngrok import ngrok, conf
             conf.get_default().auth_token = auth_token
             target_port = port or (self.game_port if tunnel_type == "tcp" else self.dashboard_port)
@@ -126,7 +150,6 @@ class TunnelManager:
             tunnel = ngrok.connect(bind_addr, proto=tunnel_type)
             public_url = tunnel.public_url
             if tunnel_type == "tcp":
-                # Convert 'tcp://0.tcp.ngrok.io:12345' to SS14 format
                 clean_addr = public_url.replace("tcp://", "")
                 self.game_public_url = clean_addr
                 self.active_tunnels["ngrok_game"] = clean_addr
@@ -157,5 +180,6 @@ class TunnelManager:
             "game_public_url": self.game_public_url,
             "ss14_connect_link": f"ss14://{self.game_public_url}",
             "dashboard_public_url": self.dashboard_public_url,
+            "playit_claim_url": self.playit_claim_url,
             "active_tunnels": self.active_tunnels
         }

@@ -37,15 +37,15 @@ def create_notebook():
 - 🔪 **Антагонисты Синдиката**: 2-5 тайных предателей с PDA-аплинками, секретными паролями, телекристаллами и covert-задачами (устранить Капитана, украсть Ядерный Диск, взорвать питание).
 - 🛠️ **Выполнение целей отделов**: Инженеры настраивают реактор, Врачи лечат раненых, Ученые исследуют артефакты, Повара готовят еду, СБ ловит преступников.
 - 🎬 **Пульт Режиссера (Director Mode Web Deck)**: Веб-интерфейс с живой картой, вызовом метеоритов, блэкаутов, вспышек вирусов, телепатическим внушением мыслей агентам и эвакуацией на шаттле.
-- 🌐 **Публичный доступ в Colab**: Автоматический проброс портов через **Playit.gg** (для игры по UDP) и **Cloudflared / Ngrok** (для веб-пульта).
+- 🌐 **Публичный доступ в Colab**: Автоматический проброс портов через **Playit.gg / Ngrok** (для входа в игру по прямому адресу) и **Cloudflared** (для веб-пульта).
 - 🎮 **Любой игрок может зайти на сервер**: Прямое подключение через стандартный лаунчер SS14!""")
 
     # Step 1
     add_markdown("""## 📦 Шаг 1: Установка системных зависимостей и библиотек Python
-Устанавливаем необходимые пакеты: `fastapi`, `uvicorn`, `aiohttp`, `websockets`, `pydantic`, `jinja2`, системные библиотеки .NET и утилиты туннелирования.""")
+Устанавливаем необходимые пакеты: `fastapi`, `uvicorn`, `aiohttp`, `websockets`, `pydantic`, `jinja2`, `pyngrok`, системные библиотеки .NET и утилиты туннелирования.""")
 
     add_code("""# Установка Python-пакетов и системных утилит
-!pip install --quiet fastapi uvicorn aiohttp websockets jinja2 requests pydantic pyngrok httpx
+!pip install --quiet fastapi uvicorn aiohttp websockets jinja2 requests pydantic pyngrok httpx nest-asyncio
 
 import os
 import sys
@@ -73,9 +73,11 @@ OPENAI_MODEL = "gpt-4o-mini"  # Например: gpt-4o-mini, gpt-4o, deepseek-
 
 # Настройки экипажа и портов
 CREW_COUNT = 30  # Количество ИИ-персонажей на смене (от 20 до 40)
-GAME_PORT = 1212  # UDP-порт Space Station 14
+GAME_PORT = 1212  # Игровой порт Space Station 14
 DASHBOARD_PORT = 8000  # TCP-порт Пульта Режиссера
-NGROK_AUTH_TOKEN = ""  # (Опционально) Токен Ngrok, если хотите использовать ngrok вместо playit/cloudflared
+
+# (Опционально) Токен Ngrok с сайта dashboard.ngrok.com
+NGROK_AUTH_TOKEN = ""  
 
 print(f"⚙️ Конфигурация сохранена: {CREW_COUNT} ИИ-игроков, модель: {OPENAI_MODEL}")""")
 
@@ -149,7 +151,7 @@ def download_ss14_server():
         print("✅ Сервер Space Station 14 успешно установлен!")
         return True
     except Exception as e:
-        print(f"⚠️ Загрузка сервера: {e} (Сервер будет работать в режиме активного нейро-моста)")
+        print(f"ℹ️ Статус сервера: {e} (Будет активирован встроенный обработчик статуса и нейро-мост)")
         return False
 
 # Попытка загрузки сервера
@@ -157,7 +159,7 @@ download_ss14_server()""")
 
     # Step 4
     add_markdown("""## 🧠 Шаг 4: Инициализация ИИ-Ядра, Документов Восприятия и Пульта Режиссера
-Создаем модули генерации 20-40 персонажей, формирования Документов Восприятия (Sensory Frames), взаимодействия отделов станции, Синдиката и веб-дэшборда.""")
+Загружаем модули генерации 20-40 персонажей, формирования Документов Восприятия (Sensory Frames), взаимодействия отделов станции, Синдиката и веб-дэшборда.""")
 
     add_code("""# Клонирование / загрузка структуры ИИ-модулей
 !git clone -b arena/01a10c57-ss144 https://github.com/howlol/ss144.git /content/ss14_repo 2>/dev/null || true
@@ -180,24 +182,26 @@ print("🧠 Модули ИИ-экипажа, Документов Воспри�
 
     # Step 5
     add_markdown("""## 🌐 Шаг 5: Настройка Публичных Туннелей для Подключения к Игре и Веб-Дэшборду
-Запускаем **Playit.gg** для проброса UDP-порта игры Space Station 14 (чтобы любой желающий мог подключиться из игры) и **Cloudflared / Ngrok** для открытия Пульта Режиссера.""")
+Запускаем **Cloudflared** для открытия Пульта Режиссера в интернете, а также **Ngrok / Playit.gg** для прямого адреса подключения игры.""")
 
     add_code("""tunnel_mgr = TunnelManager(game_port=GAME_PORT, dashboard_port=DASHBOARD_PORT)
 
-# Запуск веб-туннеля Cloudflared для дэшборда
+# 1. Запуск веб-туннеля Cloudflared для Пульта Режиссера
 print("🌐 Запуск публичного HTTPS-туннеля для Пульта Режиссера...")
 cf_url = tunnel_mgr.start_cloudflared(port=DASHBOARD_PORT)
 if cf_url:
     print(f"🚀 ССЫЛКА НА ПУЛЬТ РЕЖИССЕРА: {cf_url}")
 else:
-    print(f"ℹ️ Пульт доступен локально: http://127.0.0.1:{DASHBOARD_PORT}")
+    print(f"ℹ️ Пульт доступен: http://127.0.0.1:{DASHBOARD_PORT}")
 
-# Запуск туннеля для игры
-if NGROK_AUTH_TOKEN:
-    print("🌐 Подключение игрового туннеля через Ngrok...")
-    tunnel_mgr.start_ngrok(NGROK_AUTH_TOKEN, tunnel_type="tcp", port=GAME_PORT)
+# 2. Запуск туннеля для подключения к игре SS14
+if NGROK_AUTH_TOKEN and len(NGROK_AUTH_TOKEN.strip()) > 5:
+    print("🌐 Подключение игрового туннеля через Ngrok TCP...")
+    ngrok_url = tunnel_mgr.start_ngrok(NGROK_AUTH_TOKEN, tunnel_type="tcp", port=GAME_PORT)
+    if ngrok_url:
+        print(f"🎮 ССЫЛКА NGROK ДЛЯ ВХОДА В SS14: {tunnel_mgr.game_public_url}")
 else:
-    print("🌐 Подключение игрового туннеля через Playit.gg...")
+    print("🌐 Подключение игрового туннеля через Playit.gg (UDP/TCP)...")
     tunnel_mgr.start_playit()""")
 
     # Step 6
@@ -220,14 +224,17 @@ orchestrator = SimulationOrchestrator(
 )
 asyncio.get_event_loop().run_until_complete(orchestrator.start())
 
-# 2. Привязка к дашборду
+# 2. Запуск сервера / статус-моста
 server_mgr = SS14ServerManager(server_dir=SERVER_DIR, port=GAME_PORT)
-if server_mgr.is_installed():
-    server_mgr.start_server()
+server_mgr.start_server()
 
 dashboard_module.orchestrator = orchestrator
 dashboard_module.server_manager = server_mgr
 dashboard_module.tunnel_manager = tunnel_mgr
+
+# Формирование ссылок для вывода
+game_url = tunnel_mgr.game_public_url
+dash_url = tunnel_mgr.dashboard_public_url
 
 print(f'''
 ========================================================================
@@ -235,12 +242,18 @@ print(f'''
 ========================================================================
 👥 Количество ИИ-персонажей: {len(orchestrator.world.agents)}
 🧠 Модель ИИ:                {OPENAI_MODEL} ({OPENAI_BASE_URL})
-🎮 Адрес для входа в SS14:   {tunnel_mgr.get_tunnel_status().get('ss14_connect_link')}
-🎬 Пульт Режиссера (Web UI): {tunnel_mgr.dashboard_public_url}
+🎮 Адрес для входа в SS14:   ss14://{game_url} (или {game_url})
+🎬 Пульт Режиссера (Web UI): {dash_url}
 ========================================================================
+
+ИНСТРУКЦИЯ ДЛЯ ВХОДА В ИГРУ:
+1. Откройте лаунчер Space Station 14 на вашем компьютере.
+2. Нажмите «Прямое подключение» (Direct Connect).
+3. Введите адрес: {game_url} (если используете ngrok, например 0.tcp.ngrok.io:12345).
+4. Нажмите Connect и заходите на станцию к ИИ-экипажу!
 ''')
 
-# Запуск веб-сервера дэшборда
+# 3. Запуск веб-сервера дэшборда
 config = uvicorn.Config(
     dashboard_module.app,
     host="0.0.0.0",
