@@ -66,6 +66,12 @@ level = 2
 path = "logs/"
 """
 
+CLIENT_ZIP_HASH = "CB7F1C2E9D2397717CDFF6401F1F50085C43CAC9234408CDC6D101A71E87D857"
+CLIENT_ZIP_URL = "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip"
+FORK_ID = "wizards"
+BUILD_VERSION = "94087a918a2fae4571f5a529fe14ef7f5dce29a3"
+ENGINE_VERSION = "289.0.3"
+
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -110,18 +116,24 @@ class SS14StatusHTTPHandler(BaseHTTPRequestHandler):
                 "tags": ["lang:ru", "rp:mrp", "region:eu_e", "ai:crew"]
             }
         elif path == "/info":
+            # Extract Host header if available for seamless connect_address derivation
+            host_header = self.headers.get("Host", "")
+            if host_header:
+                conn_addr = f"udp://{host_header}"
+            else:
+                conn_addr = f"udp://{pub_host}:{pub_port}" if pub_host != "127.0.0.1" else ""
+
             data = {
-                "connect_address": f"udp://{pub_host}:{pub_port}",
+                "connect_address": conn_addr,
                 "auth": {
                     "mode": "Optional"
                 },
                 "build": {
-                    "fork_id": "wizards",
-                    "version": "94087a918a2fae4571f5a529fe14ef7f5dce29a3",
-                    "engine_version": "289.0.3",
-                    "download_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip",
-                    "manifest_url": "",
-                    "hash": ""
+                    "fork_id": FORK_ID,
+                    "version": BUILD_VERSION,
+                    "engine_version": ENGINE_VERSION,
+                    "download_url": CLIENT_ZIP_URL,
+                    "hash": CLIENT_ZIP_HASH
                 },
                 "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
                 "links": [
@@ -198,12 +210,11 @@ class SS14ServerManager:
         # Write build.json for Robust.Server
         build_json_path = os.path.join(self.server_dir, "build.json")
         build_data = {
-            "fork_id": "wizards",
-            "version": "94087a918a2fae4571f5a529fe14ef7f5dce29a3",
-            "engine_version": "289.0.3",
-            "download_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip",
-            "manifest_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/manifest",
-            "hash": ""
+            "fork_id": FORK_ID,
+            "version": BUILD_VERSION,
+            "engine_version": ENGINE_VERSION,
+            "download_url": CLIENT_ZIP_URL,
+            "hash": CLIENT_ZIP_HASH
         }
         with open(build_json_path, "w", encoding="utf-8") as f:
             json.dump(build_data, f, indent=2)

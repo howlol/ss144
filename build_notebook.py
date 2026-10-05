@@ -134,15 +134,14 @@ config_file_path = os.path.join(SERVER_DIR, "server_config.toml")
 with open(config_file_path, "w", encoding="utf-8") as f:
     f.write(SERVER_CONFIG_CONTENT)
 
-# Генерация build.json для лаунчера SS14 (предотвращает ошибки скачивания контента)
+# Генерация build.json для лаунчера SS14 (предотвращает ошибки скачивания контента и Hash mismatch)
 build_json_path = os.path.join(SERVER_DIR, "build.json")
 build_data = {
     "fork_id": "wizards",
     "version": "94087a918a2fae4571f5a529fe14ef7f5dce29a3",
     "engine_version": "289.0.3",
     "download_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip",
-    "manifest_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/manifest",
-    "hash": ""
+    "hash": "CB7F1C2E9D2397717CDFF6401F1F50085C43CAC9234408CDC6D101A71E87D857"
 }
 with open(build_json_path, "w", encoding="utf-8") as f:
     json.dump(build_data, f, indent=2)

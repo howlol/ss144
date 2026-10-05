@@ -51,13 +51,15 @@ class TestLauncherConnectionFlow(unittest.TestCase):
             self.assertIn("mode", data["auth"])
             self.assertEqual(data["auth"]["mode"], "Optional")
             
-            # Verify build section (prevents 404 / update error)
+            # Verify build section (prevents 404 / update error and Hash mismatch)
             self.assertIn("build", data)
             build = data["build"]
             self.assertIn("fork_id", build)
             self.assertIn("version", build)
             self.assertIn("engine_version", build)
             self.assertIn("download_url", build)
+            self.assertIn("hash", build)
+            self.assertEqual(build["hash"], "CB7F1C2E9D2397717CDFF6401F1F50085C43CAC9234408CDC6D101A71E87D857")
             self.assertTrue(build["download_url"].startswith("https://"))
             self.assertTrue(build["download_url"].endswith(".zip"))
 

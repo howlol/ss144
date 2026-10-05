@@ -115,12 +115,15 @@ async def ss14_launcher_status():
     })
 
 @app.get("/info")
-async def ss14_launcher_info():
+async def ss14_launcher_info(request: Request):
     """Returns official Space Station 14 launcher /info JSON format."""
     public_host = server_manager.public_host if server_manager else "127.0.0.1"
     public_port = server_manager.public_port if server_manager else 1212
+    host_header = request.headers.get("host", "")
+    conn_addr = f"udp://{host_header}" if host_header else (f"udp://{public_host}:{public_port}" if public_host != "127.0.0.1" else "")
+
     return JSONResponse({
-        "connect_address": f"udp://{public_host}:{public_port}",
+        "connect_address": conn_addr,
         "auth": {
             "mode": "Optional"
         },
@@ -129,8 +132,7 @@ async def ss14_launcher_info():
             "version": "94087a918a2fae4571f5a529fe14ef7f5dce29a3",
             "engine_version": "289.0.3",
             "download_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip",
-            "manifest_url": "",
-            "hash": ""
+            "hash": "CB7F1C2E9D2397717CDFF6401F1F50085C43CAC9234408CDC6D101A71E87D857"
         },
         "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
         "links": [
