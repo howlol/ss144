@@ -126,10 +126,10 @@ async def ss14_launcher_info():
         },
         "build": {
             "fork_id": "wizards",
-            "version": "v2026.07.27.1",
+            "version": "94087a918a2fae4571f5a529fe14ef7f5dce29a3",
             "engine_version": "289.0.3",
-            "download_url": "https://github.com/space-wizards/space-station-14/releases/download/v2026.07.27.1/SS14.Client.zip",
-            "manifest_url": "",
+            "download_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip",
+            "manifest_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/manifest",
             "hash": ""
         },
         "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
