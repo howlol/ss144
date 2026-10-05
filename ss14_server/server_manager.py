@@ -109,6 +109,14 @@ class SS14StatusHTTPHandler(BaseHTTPRequestHandler):
                 "auth": {
                     "mode": "Optional"
                 },
+                "build": {
+                    "fork_id": "wizards",
+                    "version": "v2026.07.27.1",
+                    "engine_version": "289.0.3",
+                    "download_url": "https://github.com/space-wizards/space-station-14/releases/download/v2026.07.27.1/SS14.Client.zip",
+                    "manifest_url": "",
+                    "hash": ""
+                },
                 "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
                 "links": [
                     {
@@ -180,7 +188,20 @@ class SS14ServerManager:
         config_path = os.path.join(self.server_dir, "server_config.toml")
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
-        logger.info(f"Generated server_config.toml at {config_path}")
+        
+        # Write build.json for Robust.Server
+        build_json_path = os.path.join(self.server_dir, "build.json")
+        build_data = {
+            "fork_id": "wizards",
+            "version": "v2026.07.27.1",
+            "engine_version": "289.0.3",
+            "download_url": "https://github.com/space-wizards/space-station-14/releases/download/v2026.07.27.1/SS14.Client.zip",
+            "hash": ""
+        }
+        with open(build_json_path, "w", encoding="utf-8") as f:
+            json.dump(build_data, f, indent=2)
+
+        logger.info(f"Generated server_config.toml and build.json at {self.server_dir}")
         return config_path
 
     def download_server(self, target_zip: Optional[str] = None) -> bool:
