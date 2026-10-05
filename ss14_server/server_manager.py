@@ -29,7 +29,7 @@ bindto = "0.0.0.0"
 tickrate = 30
 
 [status]
-enabled = true
+enabled = false # Managed via Python Threaded HTTP status server on TCP 1212
 bind = "0.0.0.0"
 port = 1212
 connectaddress = "udp://{public_host}:{public_port}"
@@ -38,12 +38,13 @@ connectaddress = "udp://{public_host}:{public_port}"
 hostname = "{server_name}"
 desc = "AI Autonomous Space Station 14 - 100% AI Crew with Director Mode & OpenAI Integration."
 max_players = 64
+lobbyenabled = true
 lobby_enabled = true
-lobby_duration = 10
+lobby_duration = 0
 type = "Single"
 
 [auth]
-mode = "Optional" # Allows guest players to connect without central auth
+mode = 0 # 0 = Optional (allows guest and accounts)
 allow_guests = true
 
 [rcon]
@@ -57,6 +58,7 @@ fork_id = "wizards"
 version = "94087a918a2fae4571f5a529fe14ef7f5dce29a3"
 engine_version = "289.0.3"
 download_url = "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip"
+hash = "CB7F1C2E9D2397717CDFF6401F1F50085C43CAC9234408CDC6D101A71E87D857"
 
 [hub]
 advertise = false

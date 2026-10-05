@@ -100,7 +100,7 @@ bindto = "0.0.0.0"
 tickrate = 30
 
 [status]
-enabled = true
+enabled = false # Status/Info API обрабатывается Python HTTP сервером на TCP 1212 без конфликта портов
 bind = "0.0.0.0"
 port = {GAME_PORT}
 
@@ -108,12 +108,13 @@ port = {GAME_PORT}
 hostname = "SS14 AI Station [Autonomous AI Crew]"
 desc = "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck."
 max_players = 64
+lobbyenabled = true
 lobby_enabled = true
-lobby_duration = 10
+lobby_duration = 0
 type = "Single"
 
 [auth]
-mode = "Optional" # Позволяет заходить игрокам без привязки к аккаунту
+mode = 0 # 0 = Optional (позволяет заходить без привязки к аккаунту и гостям)
 allow_guests = true
 
 [rcon]
@@ -196,16 +197,20 @@ from tunnels.tunnel_manager import TunnelManager
 print("🧠 Модули ИИ-экипажа, Документов Восприятия и Режиссера успешно импортированы!")""")
 
     # Step 5
-    add_markdown("""## 🌐 Шаг 5: Запуск Мульти-Туннелей для Входа в Игру и Веб-Пульта
-Запускаем сразу несколько независимых туннелей (**Pinggy SSH**, **Bore**, **Cloudflared HTTPS**, **Playit.gg**, **Ngrok**) для гарантированного подключения.""")
+    add_markdown("""## 🌐 Шаг 5: Запуск Мульти-Туннелей для Входа в Игру (UDP+TCP) и Веб-Пульта
+Space Station 14 использует **два сетевых протокола**:
+1. **TCP (порт 1212)**: для проверки статуса сервера и манифеста в лаунчере.
+2. **UDP (порт 1212)**: для передачи игровых пакетов и перемещения по станции в самой игре.
+
+*Для игры через интернет используется **Playit.gg** (поддерживает одновременно UDP и TCP) или **Tailscale**.*""")
 
     add_code("""tunnel_mgr = TunnelManager(game_port=GAME_PORT, dashboard_port=DASHBOARD_PORT)
 
 # Запуск полного набора туннелей
-print("🌐 Запуск мульти-провайдерного туннелирования...")
+print("🌐 Запуск мульти-провайдерного туннелирования (Playit UDP+TCP, Cloudflared HTTPS, Pinggy, Bore)...")
 tunnel_mgr.start_all_best_tunnels(ngrok_token=NGROK_AUTH_TOKEN)
 
-print("✅ Туннелирование инициализировано!")""")
+print("\\n✅ Туннелирование инициализировано! Если вы используете Playit.gg — перейдите по ссылке активации выше.")""")
 
     # Step 6
     add_markdown("""## ⚡ Шаг 6: МАСТЕР-ЗАПУСК ВСЕЙ СИСТЕМЫ В ОДИН КЛИК

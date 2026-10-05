@@ -176,7 +176,8 @@ class TunnelManager:
                 playit_url = "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64"
                 urllib.request.urlretrieve(playit_url, "/tmp/playit")
                 os.chmod("/tmp/playit", 0o755)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to download playit binary: {e}")
                 return None
 
         try:
@@ -198,22 +199,58 @@ class TunnelManager:
                     if claim_match:
                         self.playit_claim_url = claim_match.group(0)
                         self.active_tunnels["playit_claim"] = self.playit_claim_url
-                        print(f"\n⚡ [PLAYIT.GG]: Привязка туннеля: {self.playit_claim_url}\n")
+                        print(f"\n" + "="*70)
+                        print(f"⚡ [PLAYIT.GG АКТИВАЦИЯ ТУННЕЛЯ (UDP + TCP ДЛЯ ИГРЫ)]:")
+                        print(f"👉 Откройте ссылку для привязки: {self.playit_claim_url}")
+                        print(f"1. Выберите тип туннеля: Custom (TCP+UDP)")
+                        print(f"2. Укажите локальный порт: {self.game_port}")
+                        print(f"3. Нажмите Create Tunnel — лаунчер сразу сможет зайти в игру!")
+                        print("="*70 + "\n")
                     
-                    tunnel_match = re.search(r"([a-zA-Z0-9.-]+\.playit\.gg:[0-9]+)", line) or re.search(r"([a-zA-Z0-9.-]+\.gl\.joinmc\.link:[0-9]+)", line)
+                    tunnel_match = re.search(r"([a-zA-Z0-9.-]+\.playit\.gg:[0-9]+)", line) or re.search(r"([a-zA-Z0-9.-]+\.gl\.joinmc\.link:[0-9]+)", line) or re.search(r"([a-zA-Z0-9.-]+\.gl\.at\.ply\.gg:[0-9]+)", line)
                     if tunnel_match:
                         addr = tunnel_match.group(1)
                         self.game_public_url = addr
                         self.active_tunnels["playit_game"] = addr
                         self.available_game_links.append(f"ss14://{addr}")
+                        print(f"🎮 [PLAYIT.GG СЕРВЕР ГОТОВ К ПОДКЛЮЧЕНИЮ]: {addr}")
 
             threading.Thread(target=_monitor, daemon=True).start()
             self.active_tunnels["playit"] = "Running"
             return "playit_active"
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error starting playit: {e}")
+            return None
+
+    def start_tailscale(self, auth_key: Optional[str] = None) -> Optional[str]:
+        """Sets up Tailscale mesh network for 100% native zero-lag UDP/TCP gameplay."""
+        if not shutil.which("tailscale"):
+            try:
+                subprocess.run("curl -fsSL https://tailscale.com/install.sh | sh", shell=True, check=True)
+            except Exception as e:
+                logger.warning(f"Could not install Tailscale: {e}")
+                return None
+
+        try:
+            # Start tailscaled daemon in background if not running
+            subprocess.Popen(["tailscaled", "--tun=userspace-networking", "--socks5-server=localhost:1055"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(2)
+
+            cmd = ["tailscale", "up", "--hostname=colab-ss14-server"]
+            if auth_key:
+                cmd.extend(["--authkey", auth_key])
+            else:
+                cmd.append("--qr")
+
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.processes.append(proc)
+            return "tailscale_started"
+        except Exception as e:
+            logger.warning(f"Tailscale error: {e}")
             return None
 
     def start_ngrok(self, auth_token: str, tunnel_type: str = "tcp", port: Optional[int] = None) -> Optional[str]:
+        """Starts Ngrok tunnel if auth_token is provided."""
         """Starts Ngrok tunnel if auth_token is provided."""
         if not auth_token:
             return None
