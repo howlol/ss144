@@ -52,6 +52,12 @@ password = "{rcon_password}"
 port = {rcon_port}
 bind = "0.0.0.0"
 
+[build]
+fork_id = "wizards"
+version = "94087a918a2fae4571f5a529fe14ef7f5dce29a3"
+engine_version = "289.0.3"
+download_url = "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip"
+
 [hub]
 advertise = false
 
@@ -114,7 +120,7 @@ class SS14StatusHTTPHandler(BaseHTTPRequestHandler):
                     "version": "94087a918a2fae4571f5a529fe14ef7f5dce29a3",
                     "engine_version": "289.0.3",
                     "download_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/file/SS14.Client.zip",
-                    "manifest_url": "https://wizards.cdn.spacestation14.com/fork/wizards/version/94087a918a2fae4571f5a529fe14ef7f5dce29a3/manifest",
+                    "manifest_url": "",
                     "hash": ""
                 },
                 "desc": "Space Station 14 with 100% OpenAI-driven Crew and Director Storyteller Deck.",
